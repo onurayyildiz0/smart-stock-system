@@ -1,110 +1,190 @@
 // prisma/seed.ts
+
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Önce eski veriler varsa temizleyelim
+  console.log("🌱 Seed başlıyor...");
+
+  // ─── 1. Temizlik ───────────────────────────────────────────────
   await prisma.allocationItem.deleteMany();
   await prisma.allocationRun.deleteMany();
   await prisma.storeDemand.deleteMany();
   await prisma.warehouseRoute.deleteMany();
   await prisma.warehouseStock.deleteMany();
-  await prisma.product.deleteMany();
-  await prisma.store.deleteMany();
   await prisma.warehouse.deleteMany();
+  await prisma.store.deleteMany();
+  await prisma.product.deleteMany();
 
-  // 1. Ürünler
-  const p1 = await prisma.product.create({
-    data: { sku: "PRD-LAPTOP", name: "Pro Laptop 16", category: "Elektronik" },
-  });
-  const p2 = await prisma.product.create({
-    data: { sku: "PRD-PHONE", name: "Smart Phone Ultra", category: "Elektronik" },
-  });
-  const p3 = await prisma.product.create({
-    data: { sku: "PRD-HEADSET", name: "ANC Kulaklık", category: "Aksesuar" },
+  console.log("🧹 Eski veriler temizlendi.");
+
+  // ─── 2. Ürünler ────────────────────────────────────────────────
+  const laptop = await prisma.product.create({
+    data: { sku: "PRD-001", name: "Laptop Pro 15", category: "Elektronik" },
   });
 
-  // 2. Depolar
-  const wIstanbul = await prisma.warehouse.create({
-    data: { name: "Ana Depo - İstanbul (Tuzla)", location: "İstanbul", capacity: 10000 },
-  });
-  const wAnkara = await prisma.warehouse.create({
-    data: { name: "İç Anadolu Depo - Ankara", location: "Ankara", capacity: 5000 },
-  });
-  const wIzmir = await prisma.warehouse.create({
-    data: { name: "Ege Depo - İzmir", location: "İzmir", capacity: 4000 },
+  const monitor = await prisma.product.create({
+    data: { sku: "PRD-002", name: "Monitör 27\"", category: "Elektronik" },
   });
 
-  // 3. Mağazalar (Öncelik: 3 = Yüksek/Flagship, 2 = Orta, 1 = Normal)
-  const sKanyon = await prisma.store.create({
-    data: { name: "Kanyon AVM Flagship", location: "İstanbul", priority: 3 },
-  });
-  const sKizilay = await prisma.store.create({
-    data: { name: "Kızılay Şube", location: "Ankara", priority: 2 },
-  });
-  const sAlsancak = await prisma.store.create({
-    data: { name: "Alsancak Şube", location: "İzmir", priority: 2 },
-  });
-  const sBursa = await prisma.store.create({
-    data: { name: "Bursa Nilüfer Şube", location: "Bursa", priority: 1 },
+  const keyboard = await prisma.product.create({
+    data: { sku: "PRD-003", name: "Mekanik Klavye", category: "Aksesuar" },
   });
 
-  // 4. Depo Stokları (Laptop için kasıtlı olarak stok yetersizliği senaryosu kuruyoruz)
-  // Toplam Laptop Stoğu: 40 + 20 + 10 = 70 Adet
+  console.log("📦 Ürünler oluşturuldu.");
+
+  // ─── 3. Depolar ────────────────────────────────────────────────
+  const warehouseIstanbul = await prisma.warehouse.create({
+    data: {
+      name: "İstanbul Merkez Depo",
+      location: "İstanbul",
+      capacity: 1000,
+    },
+  });
+
+  const warehouseAnkara = await prisma.warehouse.create({
+    data: {
+      name: "Ankara Lojistik Depo",
+      location: "Ankara",
+      capacity: 800,
+    },
+  });
+
+  const warehouseIzmir = await prisma.warehouse.create({
+    data: {
+      name: "İzmir Bölge Depo",
+      location: "İzmir",
+      capacity: 600,
+    },
+  });
+
+  console.log("🏭 Depolar oluşturuldu.");
+
+  // ─── 4. Depo Stokları ──────────────────────────────────────────
   await prisma.warehouseStock.createMany({
     data: [
-      { warehouseId: wIstanbul.id, productId: p1.id, quantity: 40 },
-      { warehouseId: wAnkara.id, productId: p1.id, quantity: 20 },
-      { warehouseId: wIzmir.id, productId: p1.id, quantity: 10 },
-      { warehouseId: wIstanbul.id, productId: p2.id, quantity: 200 },
-      { warehouseId: wAnkara.id, productId: p2.id, quantity: 150 },
-      { warehouseId: wIzmir.id, productId: p3.id, quantity: 80 },
+      // İstanbul Depo
+      { warehouseId: warehouseIstanbul.id, productId: laptop.id,   quantity: 50  },
+      { warehouseId: warehouseIstanbul.id, productId: monitor.id,  quantity: 80  },
+      { warehouseId: warehouseIstanbul.id, productId: keyboard.id, quantity: 200 },
+
+      // Ankara Depo
+      { warehouseId: warehouseAnkara.id,   productId: laptop.id,   quantity: 30  },
+      { warehouseId: warehouseAnkara.id,   productId: monitor.id,  quantity: 60  },
+      { warehouseId: warehouseAnkara.id,   productId: keyboard.id, quantity: 150 },
+
+      // İzmir Depo
+      { warehouseId: warehouseIzmir.id,    productId: laptop.id,   quantity: 20  },
+      { warehouseId: warehouseIzmir.id,    productId: monitor.id,  quantity: 40  },
+      { warehouseId: warehouseIzmir.id,    productId: keyboard.id, quantity: 100 },
     ],
   });
 
-  // 5. Kargo Rota Matrisi (Maliyet TL ve Süre Gün)
+  console.log("📊 Stoklar oluşturuldu.");
+
+  // ─── 5. Mağazalar ──────────────────────────────────────────────
+  const storeBursa = await prisma.store.create({
+    data: {
+      name: "Bursa AVM Mağazası",
+      location: "Bursa",
+      priority: 3, // Yüksek
+    },
+  });
+
+  const storeAntalya = await prisma.store.create({
+    data: {
+      name: "Antalya Şubesi",
+      location: "Antalya",
+      priority: 2, // Orta
+    },
+  });
+
+  const storeTrabzon = await prisma.store.create({
+    data: {
+      name: "Trabzon Şubesi",
+      location: "Trabzon",
+      priority: 1, // Standart
+    },
+  });
+
+  const storeKonya = await prisma.store.create({
+    data: {
+      name: "Konya Şubesi",
+      location: "Konya",
+      priority: 2, // Orta
+    },
+  });
+
+  console.log("🏪 Mağazalar oluşturuldu.");
+
+  // ─── 6. Rota & Maliyet Bilgileri ───────────────────────────────
+  //
+  // Her depo → her mağaza kombinasyonu için
+  // shippingCost: ₺ birim başına kargo maliyeti
+  // deliveryDays: teslimat süresi (gün)
+  //
   await prisma.warehouseRoute.createMany({
     data: [
-      // İstanbul Depo Çıkışlı
-      { warehouseId: wIstanbul.id, storeId: sKanyon.id, shippingCost: 15, deliveryDays: 1 },
-      { warehouseId: wIstanbul.id, storeId: sKizilay.id, shippingCost: 45, deliveryDays: 2 },
-      { warehouseId: wIstanbul.id, storeId: sAlsancak.id, shippingCost: 50, deliveryDays: 2 },
-      { warehouseId: wIstanbul.id, storeId: sBursa.id, shippingCost: 25, deliveryDays: 1 },
+      // İstanbul → Mağazalar
+      { warehouseId: warehouseIstanbul.id, storeId: storeBursa.id,   shippingCost: 12.0, deliveryDays: 1 },
+      { warehouseId: warehouseIstanbul.id, storeId: storeAntalya.id, shippingCost: 25.0, deliveryDays: 3 },
+      { warehouseId: warehouseIstanbul.id, storeId: storeTrabzon.id, shippingCost: 30.0, deliveryDays: 4 },
+      { warehouseId: warehouseIstanbul.id, storeId: storeKonya.id,   shippingCost: 20.0, deliveryDays: 2 },
 
-      // Ankara Depo Çıkışlı
-      { warehouseId: wAnkara.id, storeId: sKanyon.id, shippingCost: 40, deliveryDays: 2 },
-      { warehouseId: wAnkara.id, storeId: sKizilay.id, shippingCost: 10, deliveryDays: 1 },
-      { warehouseId: wAnkara.id, storeId: sAlsancak.id, shippingCost: 45, deliveryDays: 2 },
-      { warehouseId: wAnkara.id, storeId: sBursa.id, shippingCost: 35, deliveryDays: 2 },
+      // Ankara → Mağazalar
+      { warehouseId: warehouseAnkara.id,   storeId: storeBursa.id,   shippingCost: 18.0, deliveryDays: 2 },
+      { warehouseId: warehouseAnkara.id,   storeId: storeAntalya.id, shippingCost: 22.0, deliveryDays: 2 },
+      { warehouseId: warehouseAnkara.id,   storeId: storeTrabzon.id, shippingCost: 20.0, deliveryDays: 2 },
+      { warehouseId: warehouseAnkara.id,   storeId: storeKonya.id,   shippingCost: 10.0, deliveryDays: 1 },
 
-      // İzmir Depo Çıkışlı
-      { warehouseId: wIzmir.id, storeId: sKanyon.id, shippingCost: 55, deliveryDays: 2 },
-      { warehouseId: wIzmir.id, storeId: sKizilay.id, shippingCost: 45, deliveryDays: 2 },
-      { warehouseId: wIzmir.id, storeId: sAlsancak.id, shippingCost: 12, deliveryDays: 1 },
-      { warehouseId: wIzmir.id, storeId: sBursa.id, shippingCost: 30, deliveryDays: 2 },
+      // İzmir → Mağazalar
+      { warehouseId: warehouseIzmir.id,    storeId: storeBursa.id,   shippingCost: 15.0, deliveryDays: 2 },
+      { warehouseId: warehouseIzmir.id,    storeId: storeAntalya.id, shippingCost: 18.0, deliveryDays: 1 },
+      { warehouseId: warehouseIzmir.id,    storeId: storeTrabzon.id, shippingCost: 40.0, deliveryDays: 5 },
+      { warehouseId: warehouseIzmir.id,    storeId: storeKonya.id,   shippingCost: 16.0, deliveryDays: 2 },
     ],
   });
 
-  // 6. Mağaza Talepleri
-  // Toplam Laptop Talebi: 50 + 30 + 20 + 20 = 120 Adet (Stok 70 olduğu için 50 adet karşılanamayacak)
+  console.log("🗺️  Rotalar oluşturuldu.");
+
+  // ─── 7. Mağaza Talepleri ───────────────────────────────────────
+  //
+  // Kasıtlı olarak bazı talepler stoktan fazla tutuldu.
+  // → Algoritmanın önceliklendirme ve kıtlık tespitini test etmek için.
+  //
   await prisma.storeDemand.createMany({
     data: [
-      { storeId: sKanyon.id, productId: p1.id, requestedQuantity: 50 },
-      { storeId: sKizilay.id, productId: p1.id, requestedQuantity: 30 },
-      { storeId: sAlsancak.id, productId: p1.id, requestedQuantity: 20 },
-      { storeId: sBursa.id, productId: p1.id, requestedQuantity: 20 },
-      { storeId: sKanyon.id, productId: p2.id, requestedQuantity: 100 },
-      { storeId: sAlsancak.id, productId: p3.id, requestedQuantity: 50 },
+      // Bursa (Yüksek Öncelik - Tier 3)
+      { storeId: storeBursa.id,   productId: laptop.id,   requestedQuantity: 60,  status: "PENDING" },
+      { storeId: storeBursa.id,   productId: monitor.id,  requestedQuantity: 50,  status: "PENDING" },
+
+      // Antalya (Orta Öncelik - Tier 2)
+      { storeId: storeAntalya.id, productId: laptop.id,   requestedQuantity: 30,  status: "PENDING" },
+      { storeId: storeAntalya.id, productId: keyboard.id, requestedQuantity: 200, status: "PENDING" },
+
+      // Trabzon (Standart - Tier 1)
+      { storeId: storeTrabzon.id, productId: laptop.id,   requestedQuantity: 25,  status: "PENDING" },
+      { storeId: storeTrabzon.id, productId: monitor.id,  requestedQuantity: 80,  status: "PENDING" },
+
+      // Konya (Orta Öncelik - Tier 2)
+      { storeId: storeKonya.id,   productId: keyboard.id, requestedQuantity: 180, status: "PENDING" },
+      { storeId: storeKonya.id,   productId: monitor.id,  requestedQuantity: 60,  status: "PENDING" },
     ],
   });
 
-  console.log("✅ Mock veriler SQLite veritabanına başarıyla yüklendi!");
+  console.log("📋 Talepler oluşturuldu.");
+  console.log("✅ Seed başarıyla tamamlandı!");
+  console.log("");
+  console.log("📌 Test Senaryosu Özeti:");
+  console.log("   Toplam Laptop Stoku : 100 adet  → Toplam Laptop Talebi : 115 adet  ⚠️  Eksik kalacak");
+  console.log("   Toplam Monitör Stoku: 180 adet  → Toplam Monitör Talebi: 190 adet  ⚠️  Eksik kalacak");
+  console.log("   Toplam Klavye Stoku : 450 adet  → Toplam Klavye Talebi : 380 adet  ✅  Yeterli");
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error("❌ Seed hatası:", e);
     process.exit(1);
   })
   .finally(async () => {

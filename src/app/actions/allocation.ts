@@ -7,18 +7,40 @@ import { revalidatePath } from "next/cache";
 
 export async function executeAllocationAction() {
   try {
-    // 1. Veritabanından girdileri topla
+    // 1. Sadece bekleyen (PENDING) veya kısmi karşılanmış (PARTIAL) talepleri al
     const demandsDb = await prisma.storeDemand.findMany({
-      include: { store: true, product: true },
+      where: {
+        status: {
+          in: ["PENDING", "PARTIAL"],
+        },
+      },
+      include: {
+        store: true,
+        product: true,
+      },
     });
 
+    // Eğer hiç açık talep yoksa erken çık
+    if (demandsDb.length === 0) {
+      return {
+        success: true,
+        message: "Dağıtılmayı bekleyen açık talep bulunamadı.",
+      };
+    }
+
+    // 2. Stok, rota ve depo bilgilerini çek
     const stocksDb = await prisma.warehouseStock.findMany({
-      include: { warehouse: true, product: true },
+      include: {
+        warehouse: true,
+        product: true,
+      },
     });
 
     const routesDb = await prisma.warehouseRoute.findMany();
 
-    // 2. Algoritmaya uygun formata dönüştür
+    const warehousesDb = await prisma.warehouse.findMany();
+
+    // 3. Verileri algoritmanın beklediği formata dönüştür
     const demands = demandsDb.map((d) => ({
       demandId: d.id,
       storeId: d.storeId,
@@ -43,16 +65,12 @@ export async function executeAllocationAction() {
       deliveryDays: r.deliveryDays,
     }));
 
-    // 3. Algoritma Motorunu Çalıştır
-    const result = runSmartAllocation(demands, stocks, routes);
+    // 4. Algoritmayı çalıştır (depo kapasitelerini de gönder)
+    const result = runSmartAllocation(demands, stocks, routes, warehousesDb);
 
-    // 4. Sonuçları Veritabanına Transaction ile Kaydet
+    // 5. Transaction ile atomik kaydet
     await prisma.$transaction(async (tx) => {
-      // Önceki geçmiş çalıştırmaları temizle (demo sade kalsın diye)
-      await tx.allocationItem.deleteMany();
-      await tx.allocationRun.deleteMany();
-
-      // Yeni çalıştırma kaydı oluştur
+      // 5a. Yeni AllocationRun kaydı oluştur
       const run = await tx.allocationRun.create({
         data: {
           totalCost: result.totalCost,
@@ -62,10 +80,10 @@ export async function executeAllocationAction() {
         },
       });
 
-      // Kalemleri kaydet
-      if (result.allocations.length > 0) {
-        await tx.allocationItem.createMany({
-          data: result.allocations.map((item) => ({
+      // 5b. Her bir allocation item'ını kaydet ve stoktan düş
+      for (const item of result.allocations) {
+        await tx.allocationItem.create({
+          data: {
             runId: run.id,
             demandId: item.demandId,
             warehouseId: item.warehouseId,
@@ -74,17 +92,59 @@ export async function executeAllocationAction() {
             unitCost: item.unitCost,
             totalCost: item.totalCost,
             deliveryDays: item.deliveryDays,
-          })),
+          },
+        });
+
+        // Depo stok miktarını güncelle
+        await tx.warehouseStock.update({
+          where: {
+            warehouseId_productId: {
+              warehouseId: item.warehouseId,
+              productId: item.productId,
+            },
+          },
+          data: {
+            quantity: {
+              decrement: item.allocatedQty,
+            },
+          },
+        });
+      }
+
+      // 5c. Talep durumlarını güncelle
+      for (const demand of demandsDb) {
+        const allocatedForThis = result.allocations
+          .filter((a) => a.demandId === demand.id)
+          .reduce((sum, curr) => sum + curr.allocatedQty, 0);
+
+        let newStatus: string;
+
+        if (allocatedForThis >= demand.requestedQuantity) {
+          newStatus = "FULFILLED";
+        } else if (allocatedForThis > 0) {
+          newStatus = "PARTIAL";
+        } else {
+          newStatus = "PENDING"; // Hiç allocation alamamışsa beklemeye devam
+        }
+
+        await tx.storeDemand.update({
+          where: { id: demand.id },
+          data: { status: newStatus },
         });
       }
     });
 
-    // 5. Sayfayı anında yenile
+    // 6. Sayfayı yenile (taze veri gösterimi için)
     revalidatePath("/");
 
-    return { success: true, message: "Dağıtım başarıyla tamamlandı." };
+    return {
+      success: true,
+    };
   } catch (error) {
-    console.error("Dağıtım hatası:", error);
-    return { success: false, message: "Dağıtım sırasında bir hata oluştu." };
+    console.error("Allocation hatası:", error);
+    return {
+      success: false,
+      message: "Dağıtım sırasında bir hata oluştu. Lütfen tekrar deneyin.",
+    };
   }
 }

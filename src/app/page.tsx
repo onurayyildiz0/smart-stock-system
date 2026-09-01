@@ -1,16 +1,18 @@
 // src/app/page.tsx
 import React from "react";
+import Link from "next/link";
+import { Settings } from "lucide-react";
 import { prisma } from "./lib/prisma";
 import RunButton from "./components/RunButton";
 import AddDemandModal from "./components/AddDemandModal";
-import { 
-  Building2, 
-  Warehouse, 
-  TrendingUp, 
-  CheckCircle2, 
+import {
+  Building2,
+  Warehouse,
+  TrendingUp,
+  CheckCircle2,
   Truck,
   Layers,
-  AlertTriangle
+  AlertTriangle,
 } from "lucide-react";
 
 export default async function DashboardPage() {
@@ -18,9 +20,9 @@ export default async function DashboardPage() {
   const warehouses = await prisma.warehouse.findMany({
     include: {
       stocks: {
-        include: { product: true }
-      }
-    }
+        include: { product: true },
+      },
+    },
   });
 
   // 2. Mağaza Talepleri
@@ -28,19 +30,28 @@ export default async function DashboardPage() {
     include: {
       store: true,
       product: true,
-      allocations: true
+      allocations: true,
     },
     orderBy: {
-      store: { priority: "desc" }
-    }
+      store: { priority: "desc" },
+    },
   });
 
   // 3. Form için Mağaza ve Ürün Listesi
-  const stores = await prisma.store.findMany({ select: { id: true, name: true } });
-  const products = await prisma.product.findMany({ select: { id: true, name: true } });
+  const stores = await prisma.store.findMany({
+    select: { id: true, name: true },
+  });
+  const products = await prisma.product.findMany({
+    select: { id: true, name: true },
+  });
 
-  // 4. En Son Yapılan Dağıtım Çalıştırması
+  // 4. En Son Yapılan Dağıtım Çalıştırması (en az 1 item'ı olan)
   const latestRun = await prisma.allocationRun.findFirst({
+    where: {
+      items: {
+        some: {}, // en az bir allocation item'ı olan
+      },
+    },
     orderBy: { createdAt: "desc" },
     include: {
       items: {
@@ -48,44 +59,54 @@ export default async function DashboardPage() {
           product: true,
           warehouse: true,
           demand: {
-            include: { store: true }
-          }
-        }
-      }
-    }
+            include: { store: true },
+          },
+        },
+      },
+    },
   });
+
+  const totalPendingItems = await prisma.storeDemand.aggregate({
+  where: { status: { in: ["PENDING", "PARTIAL"] } },
+  _sum: { requestedQuantity: true }
+});
 
   // Metrikler
   const totalWarehousesCount = warehouses.length;
-  const totalDemandQuantity = demands.reduce((acc, d) => acc + d.requestedQuantity, 0);
-  const totalStoresWaitingCount = new Set(demands.map(d => d.storeId)).size;
+  const totalDemandQuantity = demands.reduce(
+    (acc, d) => acc + d.requestedQuantity,
+    0,
+  );
+  const totalStoresWaitingCount = new Set(demands.map((d) => d.storeId)).size;
 
   // Karşılanamayan (Eksik Kalan) Taleplerin Hesaplanması
   const shortageList = latestRun
-    ? demands.map((d) => {
-        const allocatedForThisDemand = latestRun.items
-          .filter((item) => item.demandId === d.id)
-          .reduce((acc, curr) => acc + curr.allocatedQty, 0);
-        
-        const missing = d.requestedQuantity - allocatedForThisDemand;
-        return {
-          demandId: d.id,
-          storeName: d.store.name,
-          productName: d.product.name,
-          priority: d.store.priority,
-          requested: d.requestedQuantity,
-          allocated: allocatedForThisDemand,
-          missing: missing > 0 ? missing : 0,
-        };
-      }).filter(item => item.missing > 0)
+    ? demands
+        .map((d) => {
+          const allocatedForThisDemand = latestRun.items
+            .filter((item) => item.demandId === d.id)
+            .reduce((acc, curr) => acc + curr.allocatedQty, 0);
+
+          const missing = d.requestedQuantity - allocatedForThisDemand;
+          return {
+            demandId: d.id,
+            storeName: d.store.name,
+            productName: d.product.name,
+            priority: d.store.priority,
+            requested: d.requestedQuantity,
+            allocated: allocatedForThisDemand,
+            missing: missing > 0 ? missing : 0,
+          };
+        })
+        .filter((item) => item.missing > 0)
     : [];
 
   return (
     <main className="min-h-screen bg-slate-50 p-6 md:p-10 font-sans">
       <div className="max-w-7xl mx-auto space-y-8">
-        
         {/* Üst Başlık ve Aksiyon Butonları */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          
           <div>
             <div className="flex items-center gap-2">
               <span className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
@@ -95,12 +116,23 @@ export default async function DashboardPage() {
                 Akıllı Stok Dağıtım Sistemi
               </h1>
             </div>
+
+          
             <p className="text-sm text-slate-500 mt-1">
-              Çoklu depo optimizasyonu, talep karşılama ve lojistik maliyet analizi.
+              Çoklu depo optimizasyonu, talep karşılama ve lojistik maliyet
+              analizi.
             </p>
           </div>
-          
+
+
           <div className="flex items-center gap-3">
+              <Link
+            href="/inventory"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-all text-sm font-semibold shadow-sm"
+          >
+            <Settings className="w-4 h-4" />
+            Stok Yönetimi
+          </Link>
             <AddDemandModal stores={stores} products={products} />
             <RunButton />
           </div>
@@ -110,21 +142,29 @@ export default async function DashboardPage() {
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Toplam Depo</span>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Toplam Depo
+              </span>
               <Warehouse className="w-5 h-5 text-indigo-500" />
             </div>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{totalWarehousesCount} Aktif</p>
+            <p className="text-2xl font-bold text-slate-900 mt-2">
+              {totalWarehousesCount} Aktif
+            </p>
             <span className="text-xs text-slate-400 mt-1 inline-block truncate">
-              {warehouses.map(w => w.location).join(", ")}
+              {warehouses.map((w) => w.location).join(", ")}
             </span>
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Toplam Talep</span>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Toplam Talep
+              </span>
               <Building2 className="w-5 h-5 text-amber-500" />
             </div>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{totalDemandQuantity} Adet</p>
+            <p className="text-2xl font-bold text-slate-900 mt-2">
+              {totalDemandQuantity} Adet
+            </p>
             <span className="text-xs text-amber-600 font-medium mt-1 inline-block">
               {totalStoresWaitingCount} Farklı Mağaza
             </span>
@@ -132,7 +172,9 @@ export default async function DashboardPage() {
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Toplam Maliyet</span>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Toplam Maliyet
+              </span>
               <TrendingUp className="w-5 h-5 text-emerald-500" />
             </div>
             <p className="text-2xl font-bold text-slate-900 mt-2">
@@ -145,14 +187,18 @@ export default async function DashboardPage() {
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Karşılama Oranı</span>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Karşılama Oranı
+              </span>
               <CheckCircle2 className="w-5 h-5 text-blue-500" />
             </div>
             <p className="text-2xl font-bold text-slate-900 mt-2">
               {latestRun ? `%${latestRun.fulfillmentRate}` : "-%"}
             </p>
             <span className="text-xs text-slate-400 mt-1 inline-block">
-              {latestRun ? `${latestRun.totalFulfilled} / ${latestRun.totalRequested} adet sevk edildi` : "Henüz hesaplanmadı"}
+              {latestRun
+                ? `${latestRun.totalFulfilled} / ${latestRun.totalRequested} adet sevk edildi`
+                : "Henüz hesaplanmadı"}
             </span>
           </div>
         </section>
@@ -167,16 +213,26 @@ export default async function DashboardPage() {
                   Stok Yetersizliği Nedeniyle Karşılanamayan Talepler Var!
                 </h3>
                 <p className="text-xs text-amber-700 mt-0.5">
-                  Toplam stok yetersiz kaldığından algoritma yüksek öncelikli mağazaları öncelemiş, kalan talepleri eksik bırakmıştır:
+                  Toplam stok yetersiz kaldığından algoritma yüksek öncelikli
+                  mağazaları öncelemiş, kalan talepleri eksik bırakmıştır:
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-3">
                   {shortageList.map((s, idx) => (
-                    <div key={idx} className="bg-white p-3 rounded-xl border border-amber-200/80 text-xs shadow-2xs">
-                      <p className="font-semibold text-slate-800">{s.storeName}</p>
+                    <div
+                      key={idx}
+                      className="bg-white p-3 rounded-xl border border-amber-200/80 text-xs shadow-2xs"
+                    >
+                      <p className="font-semibold text-slate-800">
+                        {s.storeName}
+                      </p>
                       <p className="text-slate-500">{s.productName}</p>
                       <div className="mt-2 flex justify-between items-center pt-2 border-t border-slate-100">
-                        <span className="text-slate-500">İstenen / Verilen:</span>
-                        <span className="font-medium text-slate-700">{s.requested} / {s.allocated}</span>
+                        <span className="text-slate-500">
+                          İstenen / Verilen:
+                        </span>
+                        <span className="font-medium text-slate-700">
+                          {s.requested} / {s.allocated}
+                        </span>
                       </div>
                       <div className="flex justify-between items-center text-rose-600 font-bold mt-1">
                         <span>Eksik Kalan:</span>
@@ -192,7 +248,6 @@ export default async function DashboardPage() {
 
         {/* 1. Kısım: Girdiler */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
           {/* Sol: Depolar */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
@@ -217,11 +272,15 @@ export default async function DashboardPage() {
                   {warehouses.flatMap((w) =>
                     w.stocks.map((s) => (
                       <tr key={s.id} className="hover:bg-slate-50/50">
-                        <td className="p-3 font-medium text-slate-800">{w.name}</td>
+                        <td className="p-3 font-medium text-slate-800">
+                          {w.name}
+                        </td>
                         <td className="p-3">{s.product.name}</td>
-                        <td className="p-3 text-right font-semibold text-indigo-600">{s.quantity} Adet</td>
+                        <td className="p-3 text-right font-semibold text-indigo-600">
+                          {s.quantity} Adet
+                        </td>
                       </tr>
-                    ))
+                    )),
                   )}
                 </tbody>
               </table>
@@ -252,7 +311,9 @@ export default async function DashboardPage() {
                 <tbody className="divide-y divide-slate-100">
                   {demands.map((d) => (
                     <tr key={d.id} className="hover:bg-slate-50/50">
-                      <td className="p-3 font-medium text-slate-800">{d.store.name}</td>
+                      <td className="p-3 font-medium text-slate-800">
+                        {d.store.name}
+                      </td>
                       <td className="p-3 text-slate-600">{d.product.name}</td>
                       <td className="p-3">
                         {d.store.priority === 3 && (
@@ -280,7 +341,6 @@ export default async function DashboardPage() {
               </table>
             </div>
           </div>
-
         </section>
 
         {/* 2. Kısım: Dağıtım Çıktı Paneli */}
@@ -292,7 +352,8 @@ export default async function DashboardPage() {
             </h2>
             {latestRun && (
               <span className="text-xs text-slate-400">
-                Son Dağıtım: {new Date(latestRun.createdAt).toLocaleTimeString("tr-TR")}
+                Son Dağıtım:{" "}
+                {new Date(latestRun.createdAt).toLocaleTimeString("tr-TR")}
               </span>
             )}
           </div>
@@ -300,9 +361,12 @@ export default async function DashboardPage() {
           {!latestRun || latestRun.items.length === 0 ? (
             <div className="text-center py-12 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
               <Truck className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <p className="text-slate-600 font-medium">Henüz bir dağıtım planı oluşturulmadı.</p>
+              <p className="text-slate-600 font-medium">
+                Henüz bir dağıtım planı oluşturulmadı.
+              </p>
               <p className="text-xs text-slate-400 mt-1">
-                Yukarıdaki "Optimizasyonu Çalıştır" butonuna basarak algoritmayı test edebilirsiniz.
+                Yukarıdaki "Optimizasyonu Çalıştır" butonuna basarak algoritmayı
+                test edebilirsiniz.
               </p>
             </div>
           ) : (
@@ -322,14 +386,22 @@ export default async function DashboardPage() {
                 <tbody className="divide-y divide-slate-100">
                   {latestRun.items.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/50">
-                      <td className="p-3 font-medium text-slate-800">{item.warehouse.name}</td>
-                      <td className="p-3 font-medium text-slate-800">{item.demand.store.name}</td>
+                      <td className="p-3 font-medium text-slate-800">
+                        {item.warehouse.name}
+                      </td>
+                      <td className="p-3 font-medium text-slate-800">
+                        {item.demand.store.name}
+                      </td>
                       <td className="p-3">{item.product.name}</td>
                       <td className="p-3 text-right font-bold text-emerald-600">
                         {item.allocatedQty} Adet
                       </td>
-                      <td className="p-3 text-right font-medium">₺{item.unitCost}</td>
-                      <td className="p-3 text-right font-bold text-slate-900">₺{item.totalCost}</td>
+                      <td className="p-3 text-right font-medium">
+                        ₺{item.unitCost}
+                      </td>
+                      <td className="p-3 text-right font-bold text-slate-900">
+                        ₺{item.totalCost}
+                      </td>
                       <td className="p-3 text-center">
                         <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
                           {item.deliveryDays} Gün
@@ -342,7 +414,6 @@ export default async function DashboardPage() {
             </div>
           )}
         </section>
-
       </div>
     </main>
   );

@@ -46,6 +46,7 @@ export interface AllocationEngineResult {
     storeName: string;
     productName: string;
     missingQty: number;
+    reason: string; // <-- Bu satırı ekle
   }[];
 }
 
@@ -54,32 +55,30 @@ export interface AllocationEngineResult {
  * Zaman Karmaşıklığı (Time Complexity): O(D * log(D) + D * W * log(W))
  * D: Talep sayısı, W: Depo sayısı
  */
+
 export function runSmartAllocation(
   demands: DemandInput[],
   initialStocks: StockInput[],
   routes: RouteInput[],
+  warehouses: { id: string, capacity: number }[], // Kapasite için yeni girdi
   weights = { costWeight: 0.7, timeWeight: 0.3 }
 ): AllocationEngineResult {
-  // 1. Stok durumunu dinamik takip etmek için Map yapısı (O(1) hızlı erişim)
+  
   const stockMap = new Map<string, number>();
-  initialStocks.forEach((s) => {
-    stockMap.set(`${s.warehouseId}:${s.productId}`, s.availableQty);
+  initialStocks.forEach((s) => stockMap.set(`${s.warehouseId}:${s.productId}`, s.availableQty));
+
+  // DEPO DOLULUK TAKİBİ (Yeni)
+  const warehouseUsageMap = new Map<string, number>();
+  // Mevcut toplam stokları başlangıç doluluğu olarak alalım
+  initialStocks.forEach(s => {
+    const current = warehouseUsageMap.get(s.warehouseId) || 0;
+    warehouseUsageMap.set(s.warehouseId, current + s.availableQty);
   });
 
-  // 2. Rota ve maliyet bilgileri için Map
   const routeMap = new Map<string, RouteInput>();
-  routes.forEach((r) => {
-    routeMap.set(`${r.warehouseId}:${r.storeId}`, r);
-  });
+  routes.forEach((r) => routeMap.set(`${r.warehouseId}:${r.storeId}`, r));
 
-  // 3. Önceliklendirme: Önce yüksek öncelikli mağazalar (3 > 2 > 1)
-  const sortedDemands = [...demands].sort((a, b) => {
-    if (b.storePriority !== a.storePriority) {
-      return b.storePriority - a.storePriority;
-    }
-    return a.requestedQty - b.requestedQty;
-  });
-
+  const sortedDemands = [...demands].sort((a, b) => b.storePriority - a.storePriority);
   const allocations: AllocationResultItem[] = [];
   const unfulfilledDemands: AllocationEngineResult["unfulfilledDemands"] = [];
 
@@ -87,39 +86,27 @@ export function runSmartAllocation(
   let totalFulfilled = 0;
   let totalCost = 0;
 
-  // 4. Talepleri en uygun depolardan karşıla
   for (const demand of sortedDemands) {
     totalRequested += demand.requestedQty;
     let remainingToFulfill = demand.requestedQty;
 
-    // Ürüne sahip depoları filtrele
-    const candidateWarehouseIds = initialStocks
+    const scoredWarehouses = initialStocks
       .filter((s) => s.productId === demand.productId)
-      .map((s) => s.warehouseId);
-
-    // Depoları Maliyet ve Teslimat Süresine göre puanla (Düşük Skor = Daha İyi)
-    const scoredWarehouses = candidateWarehouseIds
-      .map((wId) => {
-        const route = routeMap.get(`${wId}:${demand.storeId}`);
-        const currentStock = stockMap.get(`${wId}:${demand.productId}`) || 0;
-
+      .map((s) => {
+        const route = routeMap.get(`${s.warehouseId}:${demand.storeId}`);
+        const currentStock = stockMap.get(`${s.warehouseId}:${demand.productId}`) || 0;
+        const warehouseInfo = warehouses.find(w => w.id === s.warehouseId);
+        
         if (!route || currentStock <= 0) return null;
 
-        const score =
-          route.shippingCost * weights.costWeight +
-          route.deliveryDays * 10 * weights.timeWeight;
+        // Basit Skorlama: Düşük maliyet ve kısa süre iyidir.
+        const score = (route.shippingCost * weights.costWeight) + (route.deliveryDays * 5 * weights.timeWeight);
 
-        return {
-          warehouseId: wId,
-          stock: currentStock,
-          route,
-          score,
-        };
+        return { warehouseId: s.warehouseId, stock: currentStock, route, score, capacity: warehouseInfo?.capacity || 999999 };
       })
       .filter((w): w is NonNullable<typeof w> => w !== null)
       .sort((a, b) => a.score - b.score);
 
-    // En uygun depodan başla ve parçalı dağıtım (Split Allocation) yap
     for (const cand of scoredWarehouses) {
       if (remainingToFulfill <= 0) break;
 
@@ -128,13 +115,11 @@ export function runSmartAllocation(
 
       const allocateAmount = Math.min(remainingToFulfill, currentAvailable);
 
-      // Depo stoğunu düş
+      // Stok ve Maliyet Güncelleme
       stockMap.set(`${cand.warehouseId}:${demand.productId}`, currentAvailable - allocateAmount);
       remainingToFulfill -= allocateAmount;
       totalFulfilled += allocateAmount;
-
-      const itemCost = allocateAmount * cand.route.shippingCost;
-      totalCost += itemCost;
+      totalCost += (allocateAmount * cand.route.shippingCost);
 
       allocations.push({
         demandId: demand.demandId,
@@ -143,29 +128,41 @@ export function runSmartAllocation(
         productId: demand.productId,
         allocatedQty: allocateAmount,
         unitCost: cand.route.shippingCost,
-        totalCost: itemCost,
+        totalCost: allocateAmount * cand.route.shippingCost,
         deliveryDays: cand.route.deliveryDays,
       });
     }
 
-    // Karşılanamayan açık talep varsa kaydet
-    if (remainingToFulfill > 0) {
+        if (remainingToFulfill > 0) {
+      // Ürün hiç mi yok, yoksa var ama rota mı tanımlanmamış?
+      const productInStock = initialStocks.filter(s => s.productId === demand.productId);
+      const totalStockAcrossWarehouses = productInStock.reduce((sum, s) => sum + s.availableQty, 0);
+      
+      let reason = "STOK YETERSİZ";
+      
+      if (totalStockAcrossWarehouses > 0) {
+        // Stok var ama bu mağazaya ulaşamıyor olabilir
+        const hasRoute = productInStock.some(s => 
+          routeMap.has(`${s.warehouseId}:${demand.storeId}`)
+        );
+        reason = hasRoute ? "YETERSİZ STOK MİKTARI" : "ROTA TANIMLANMAMIŞ";
+      }
+
       unfulfilledDemands.push({
         demandId: demand.demandId,
         storeName: demand.storeName,
         productName: demand.productName,
         missingQty: remainingToFulfill,
+        reason: reason 
       });
     }
   }
-
-  const fulfillmentRate = totalRequested > 0 ? (totalFulfilled / totalRequested) * 100 : 0;
 
   return {
     allocations,
     totalRequested,
     totalFulfilled,
-    fulfillmentRate: Number(fulfillmentRate.toFixed(1)),
+    fulfillmentRate: Number(((totalFulfilled / totalRequested) * 100).toFixed(1)),
     totalCost: Number(totalCost.toFixed(2)),
     unfulfilledDemands,
   };

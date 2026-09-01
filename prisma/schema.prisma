@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
@@ -6,6 +8,7 @@ datasource db {
 generator client {
   provider = "prisma-client-js"
 }
+
 model Product {
   id          String            @id @default(cuid())
   sku         String            @unique
@@ -21,7 +24,7 @@ model Warehouse {
   id          String            @id @default(cuid())
   name        String
   location    String
-  capacity    Int
+  capacity    Int               // Toplam depolama kapasitesi (Adet)
   stocks      WarehouseStock[]
   routes      WarehouseRoute[]
   allocations AllocationItem[]
@@ -32,7 +35,7 @@ model Store {
   id          String            @id @default(cuid())
   name        String
   location    String
-  priority    Int               // 1: Standart, 2: Orta, 3: Yüksek (Flagship)
+  priority    Int               // 1: Standart, 2: Orta, 3: Yüksek
   demands     StoreDemand[]
   routes      WarehouseRoute[]
   createdAt   DateTime          @default(now())
@@ -53,8 +56,8 @@ model WarehouseRoute {
   id           String    @id @default(cuid())
   warehouseId  String
   storeId      String
-  shippingCost Float     // Birim kargo maliyeti (TL)
-  deliveryDays Int       // Teslimat süresi (Gün)
+  shippingCost Float     
+  deliveryDays Int       
   warehouse    Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
   store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
@@ -66,7 +69,8 @@ model StoreDemand {
   storeId           String
   productId         String
   requestedQuantity Int
-  status            String            @default("PENDING")
+  // PENDING, PARTIAL, FULFILLED
+  status            String            @default("PENDING") 
   store             Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
   product           Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
   allocations       AllocationItem[]
