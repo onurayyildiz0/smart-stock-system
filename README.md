@@ -64,3 +64,8 @@ Algoritma `src/lib/allocation-engine.ts` altında saf TypeScript fonksiyonu olar
 ### 1. Bağımlılıkları Yükleyin
 ```bash
 npm install
+npx prisma db push
+npx prisma generate
+npx tsx prisma/seed.ts
+npm run dev
+npx prisma studio
