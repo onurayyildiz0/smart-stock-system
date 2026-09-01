@@ -1,0 +1,100 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+model Product {
+  id          String            @id @default(cuid())
+  sku         String            @unique
+  name        String
+  category    String
+  stocks      WarehouseStock[]
+  demands     StoreDemand[]
+  allocations AllocationItem[]
+  createdAt   DateTime          @default(now())
+}
+
+model Warehouse {
+  id          String            @id @default(cuid())
+  name        String
+  location    String
+  capacity    Int
+  stocks      WarehouseStock[]
+  routes      WarehouseRoute[]
+  allocations AllocationItem[]
+  createdAt   DateTime          @default(now())
+}
+
+model Store {
+  id          String            @id @default(cuid())
+  name        String
+  location    String
+  priority    Int               // 1: Standart, 2: Orta, 3: Yüksek (Flagship)
+  demands     StoreDemand[]
+  routes      WarehouseRoute[]
+  createdAt   DateTime          @default(now())
+}
+
+model WarehouseStock {
+  id          String    @id @default(cuid())
+  warehouseId String
+  productId   String
+  quantity    Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([warehouseId, productId])
+}
+
+model WarehouseRoute {
+  id           String    @id @default(cuid())
+  warehouseId  String
+  storeId      String
+  shippingCost Float     // Birim kargo maliyeti (TL)
+  deliveryDays Int       // Teslimat süresi (Gün)
+  warehouse    Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([warehouseId, storeId])
+}
+
+model StoreDemand {
+  id                String            @id @default(cuid())
+  storeId           String
+  productId         String
+  requestedQuantity Int
+  status            String            @default("PENDING")
+  store             Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product           Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  allocations       AllocationItem[]
+  createdAt         DateTime          @default(now())
+}
+
+model AllocationRun {
+  id              String           @id @default(cuid())
+  totalCost       Float
+  fulfillmentRate Float
+  totalRequested  Int
+  totalFulfilled  Int
+  items           AllocationItem[]
+  createdAt       DateTime         @default(now())
+}
+
+model AllocationItem {
+  id           String        @id @default(cuid())
+  runId        String
+  demandId     String
+  warehouseId  String
+  productId    String
+  allocatedQty Int
+  unitCost     Float
+  totalCost    Float
+  deliveryDays Int
+  run          AllocationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  demand       StoreDemand   @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  warehouse    Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  product      Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
