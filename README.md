@@ -51,7 +51,7 @@ Algoritma `src/lib/allocation-engine.ts` altında saf TypeScript fonksiyonu olar
 
 ## 🛠️ Teknoloji Yığını
 
-- **Framework:** Next.js 14+ (App Router, Server Actions)
+- **Framework:** Next.js 15+ (App Router, Server Actions)
 - **Dil:** TypeScript (Strict Mode)
 - **Veritabanı & ORM:** SQLite / Prisma ORM 5
 - **Stil & İkon:** Tailwind CSS, Lucide React
