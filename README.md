@@ -2,7 +2,7 @@
 
 Merkezi depolar ile perakende mağazaları arasındaki ürün akışını, sevkiyat maliyetlerini ve teslimat sürelerini optimize eden **Akıllı Stok Dağıtım ve Tedarik Zinciri Optimizasyon Sistemi**.
 
-Kısıtlı stok ortamında mağaza önceliklendirmesi (Store Tiering), çok kriterli depo skorlaması ve parçalı sevkiyat (Split Allocation) mantığını modern **Next.js 14+ (App Router)**, **TypeScript** ve **Prisma ORM** mimarisiyle uçtan uca çözer.
+Kısıtlı stok ortamında mağaza önceliklendirmesi (Store Tiering), çok kriterli depo skorlaması ve parçalı sevkiyat (Split Allocation) mantığını modern **Next.js 15+ (App Router)**, **TypeScript** ve **Prisma ORM** mimarisiyle uçtan uca çözer.
 
 ---
 
