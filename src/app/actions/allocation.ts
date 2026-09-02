@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 
 export async function executeAllocationAction() {
   try {
-    // 1. Sadece bekleyen (PENDING) veya kısmi karşılanmış (PARTIAL) talepleri al
+    // 1. Talepleri çekerken daha önce gönderilenleri (allocations) de çekiyoruz!
     const demandsDb = await prisma.storeDemand.findMany({
       where: {
         status: {
@@ -17,10 +17,10 @@ export async function executeAllocationAction() {
       include: {
         store: true,
         product: true,
+        allocations: true, // <-- BÜYÜK DÜZELTME: Eski sevkiyat geçmişini getir
       },
     });
 
-    // Eğer hiç açık talep yoksa erken çık
     if (demandsDb.length === 0) {
       return {
         success: true,
@@ -28,28 +28,40 @@ export async function executeAllocationAction() {
       };
     }
 
-    // 2. Stok, rota ve depo bilgilerini çek
     const stocksDb = await prisma.warehouseStock.findMany({
-      include: {
-        warehouse: true,
-        product: true,
-      },
+      include: { warehouse: true, product: true },
     });
-
     const routesDb = await prisma.warehouseRoute.findMany();
-
     const warehousesDb = await prisma.warehouse.findMany();
 
-    // 3. Verileri algoritmanın beklediği formata dönüştür
-    const demands = demandsDb.map((d) => ({
-      demandId: d.id,
-      storeId: d.storeId,
-      storeName: d.store.name,
-      storePriority: d.store.priority,
-      productId: d.productId,
-      productName: d.product.name,
-      requestedQty: d.requestedQuantity,
-    }));
+    // 3. Verileri formata dönüştürürken "Kalan İhtiyacı" hesapla
+    const demands = demandsDb
+      .map((d) => {
+        // Bu talep için daha önce kaç adet ürün yollanmış?
+        const alreadyAllocated = d.allocations.reduce(
+          (sum, a) => sum + a.allocatedQty,
+          0,
+        );
+
+        // Gerçekten yollanması gereken kalan miktar (Örn: 70 - 15 = 55)
+        const trueRemainingQty = d.requestedQuantity - alreadyAllocated;
+
+        return {
+          demandId: d.id,
+          storeId: d.storeId,
+          storeName: d.store.name,
+          storePriority: d.store.priority,
+          productId: d.productId,
+          productName: d.product.name,
+          requestedQty: trueRemainingQty, // Artık 70'i değil, kalanı gönderiyoruz!
+        };
+      })
+      .filter((d) => d.requestedQty > 0); // Sadece ihtiyacı kalanları listeye al
+
+    // Kalan ihtiyacı olan ürün yoksa erken çık
+    if (demands.length === 0) {
+      return { success: true, message: "Tüm talepler zaten karşılanmış." };
+    }
 
     const stocks = stocksDb.map((s) => ({
       warehouseId: s.warehouseId,
@@ -57,7 +69,6 @@ export async function executeAllocationAction() {
       productId: s.productId,
       availableQty: s.quantity,
     }));
-
     const routes = routesDb.map((r) => ({
       warehouseId: r.warehouseId,
       storeId: r.storeId,
@@ -65,12 +76,11 @@ export async function executeAllocationAction() {
       deliveryDays: r.deliveryDays,
     }));
 
-    // 4. Algoritmayı çalıştır (depo kapasitelerini de gönder)
+    // 4. Algoritmayı kalan gerçek ihtiyaçlar (trueRemainingQty) ile çalıştır
     const result = runSmartAllocation(demands, stocks, routes, warehousesDb);
 
-    // 5. Transaction ile atomik kaydet
+    // 5. Transaction
     await prisma.$transaction(async (tx) => {
-      // 5a. Yeni AllocationRun kaydı oluştur
       const run = await tx.allocationRun.create({
         data: {
           totalCost: result.totalCost,
@@ -80,7 +90,6 @@ export async function executeAllocationAction() {
         },
       });
 
-      // 5b. Her bir allocation item'ını kaydet ve stoktan düş
       for (const item of result.allocations) {
         await tx.allocationItem.create({
           data: {
@@ -95,7 +104,6 @@ export async function executeAllocationAction() {
           },
         });
 
-        // Depo stok miktarını güncelle
         await tx.warehouseStock.update({
           where: {
             warehouseId_productId: {
@@ -104,47 +112,47 @@ export async function executeAllocationAction() {
             },
           },
           data: {
-            quantity: {
-              decrement: item.allocatedQty,
-            },
+            quantity: { decrement: item.allocatedQty },
           },
         });
       }
 
-      // 5c. Talep durumlarını güncelle
+      // 5c. Talep durumlarını güncellerken geçmişi de hesaba kat
       for (const demand of demandsDb) {
-        const allocatedForThis = result.allocations
+        // Bu seferki çalıştırmada gönderilen miktar
+        const newlyAllocated = result.allocations
           .filter((a) => a.demandId === demand.id)
           .reduce((sum, curr) => sum + curr.allocatedQty, 0);
 
-        let newStatus: string;
+        // Geçmişteki çalıştırmalarda gönderilen miktar
+        const oldAllocated = demand.allocations.reduce(
+          (sum, curr) => sum + curr.allocatedQty,
+          0,
+        );
 
-        if (allocatedForThis >= demand.requestedQuantity) {
-          newStatus = "FULFILLED";
-        } else if (allocatedForThis > 0) {
-          newStatus = "PARTIAL";
-        } else {
-          newStatus = "PENDING"; // Hiç allocation alamamışsa beklemeye devam
+        // Toplam elimize ulaşan
+        const totalAllocatedNow = oldAllocated + newlyAllocated;
+
+        let newStatus: string = demand.status;
+        if (totalAllocatedNow >= demand.requestedQuantity) {
+          newStatus = "FULFILLED"; // Tamamen Karşılandı
+        } else if (totalAllocatedNow > 0) {
+          newStatus = "PARTIAL"; // Kısmi Karşılandı
         }
 
-        await tx.storeDemand.update({
-          where: { id: demand.id },
-          data: { status: newStatus },
-        });
+        if (newStatus !== demand.status) {
+          await tx.storeDemand.update({
+            where: { id: demand.id },
+            data: { status: newStatus },
+          });
+        }
       }
     });
 
-    // 6. Sayfayı yenile (taze veri gösterimi için)
     revalidatePath("/");
-
-    return {
-      success: true,
-    };
+    return { success: true };
   } catch (error) {
     console.error("Allocation hatası:", error);
-    return {
-      success: false,
-      message: "Dağıtım sırasında bir hata oluştu. Lütfen tekrar deneyin.",
-    };
+    return { success: false, message: "Dağıtım sırasında hata oluştu." };
   }
 }

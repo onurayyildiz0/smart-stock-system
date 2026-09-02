@@ -18,7 +18,7 @@ export default function RunButton() {
     <button
       onClick={handleRun}
       disabled={isPending}
-      className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium px-5 py-2.5 rounded-xl transition shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:cursor-not-allowed"
+      className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium px-7 py-1 rounded-xl transition shadow-sm hover:shadow active:scale-95 cursor-pointer disabled:cursor-not-allowed"
     >
       {isPending ? (
         <>
@@ -27,8 +27,8 @@ export default function RunButton() {
         </>
       ) : (
         <>
-          <Play className="w-4 h-4 fill-white" />
-          Optimizasyonu Çalıştır
+          <Play className="w-4 h-4 fill-white flex flex items-center justify-center" />
+          Opt. Çalıştır
         </>
       )}
     </button>

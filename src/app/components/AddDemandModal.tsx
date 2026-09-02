@@ -52,7 +52,9 @@ export default function AddDemandModal({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-150">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-900">Yeni Mağaza Talebi</h3>
+              <h3 className="text-lg font-bold text-slate-900">
+                Yeni Mağaza Talebi
+              </h3>
               <button
                 onClick={() => setIsOpen(false)}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100"
@@ -125,7 +127,11 @@ export default function AddDemandModal({
                   disabled={isPending}
                   className="w-1/2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium text-sm flex items-center justify-center gap-2"
                 >
-                  {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Kaydet"}
+                  {isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "Kaydet"
+                  )}
                 </button>
               </div>
             </form>
