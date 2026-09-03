@@ -16,8 +16,12 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
+      // src/lib/auth.ts
       async authorize(credentials) {
+        console.log("Giriş denemesi:", credentials?.email);
+
         if (!credentials?.email || !credentials?.password) {
+          console.log("Eksik bilgi");
           throw new Error("Geçersiz giriş bilgileri");
         }
 
@@ -25,7 +29,10 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email },
         });
 
+        console.log("Bulunan kullanıcı:", user);
+
         if (!user || !user.password) {
+          console.log("Kullanıcı bulunamadı veya şifresiz");
           throw new Error("Kullanıcı bulunamadı");
         }
 
@@ -33,6 +40,8 @@ export const authOptions: NextAuthOptions = {
           credentials.password,
           user.password,
         );
+
+        console.log("Şifre doğru mu?:", isPasswordValid);
 
         if (!isPasswordValid) {
           throw new Error("Hatalı şifre");

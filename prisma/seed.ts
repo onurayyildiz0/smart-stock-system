@@ -132,11 +132,6 @@ async function main() {
   console.log("🏪 Mağazalar oluşturuldu.");
 
   // ─── 6. Rota & Maliyet Bilgileri ───────────────────────────────
-  //
-  // Her depo → her mağaza kombinasyonu için
-  // shippingCost: ₺ birim başına kargo maliyeti
-  // deliveryDays: teslimat süresi (gün)
-  //
   await prisma.warehouseRoute.createMany({
     data: [
       // İstanbul → Mağazalar
@@ -222,10 +217,6 @@ async function main() {
   console.log("🗺️  Rotalar oluşturuldu.");
 
   // ─── 7. Mağaza Talepleri ───────────────────────────────────────
-  //
-  // Kasıtlı olarak bazı talepler stoktan fazla tutuldu.
-  // → Algoritmanın önceliklendirme ve kıtlık tespitini test etmek için.
-  //
   await prisma.storeDemand.createMany({
     data: [
       // Bursa (Yüksek Öncelik - Tier 3)
@@ -287,22 +278,8 @@ async function main() {
   });
 
   console.log("📋 Talepler oluşturuldu.");
-  console.log("✅ Seed başarıyla tamamlandı!");
-  console.log("");
-  console.log("📌 Test Senaryosu Özeti:");
-  console.log(
-    "   Toplam Laptop Stoku : 100 adet  → Toplam Laptop Talebi : 115 adet  ⚠️  Eksik kalacak",
-  );
-  console.log(
-    "   Toplam Monitör Stoku: 180 adet  → Toplam Monitör Talebi: 190 adet  ⚠️  Eksik kalacak",
-  );
-  console.log(
-    "   Toplam Klavye Stoku : 450 adet  → Toplam Klavye Talebi : 380 adet  ✅  Yeterli",
-  );
 
-  console.log("📋 Talepler oluşturuldu.");
-
-  // ─── 8. Kullanıcılar (RBAC) ────────────────────────────────────
+  // ─── 8. Kullanıcılar (RBAC & Approval) ─────────────────────────
   const defaultPassword = await bcrypt.hash("123456", 10);
 
   await prisma.user.createMany({
@@ -312,26 +289,38 @@ async function main() {
         email: "admin@system.com",
         password: defaultPassword,
         role: "ADMIN",
+        isApproved: true,
       },
       {
         name: "Bursa Mağaza Müdürü",
-        email: "bursamagaza@system.com",
+        email: "magaza@system.com",
         password: defaultPassword,
         role: "STORE_MANAGER",
         storeId: storeBursa.id,
+        isApproved: true,
       },
       {
         name: "İstanbul Depo Sorumlusu",
-        email: "istanbuldepo@system.com",
+        email: "depo@system.com",
         password: defaultPassword,
         role: "WAREHOUSE_MANAGER",
         warehouseId: warehouseIstanbul.id,
+        isApproved: true,
+      },
+      // Admin onay panelini hemen test edebilmek için onay bekleyen örnek kullanıcı:
+      {
+        name: "İzmir Depo Adayı",
+        email: "onaybekleyen@system.com",
+        password: defaultPassword,
+        role: "WAREHOUSE_MANAGER",
+        warehouseId: warehouseIzmir.id,
+        isApproved: false,
       },
     ],
   });
 
   console.log(
-    "👤 Kullanıcılar (Admin, Bursa Mağaza, İstanbul Depo) oluşturuldu.",
+    "👤 Kullanıcılar (Admin, Mağaza, Depo + 1 Onay Bekleyen) oluşturuldu.",
   );
   console.log("✅ Seed başarıyla tamamlandı!");
 }
@@ -342,5 +331,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    prisma.$disconnect();
+    await prisma.$disconnect();
   });

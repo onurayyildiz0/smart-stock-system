@@ -1,10 +1,9 @@
-// src/app/register/RegisterForm.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { registerUserAction } from "../actions/auth";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface Props {
   stores: { id: string; name: string }[];
@@ -48,32 +47,34 @@ export default function RegisterForm({ stores, warehouses }: Props) {
       setSuccess(true);
       setTimeout(() => {
         router.push("/login");
-      }, 2500);
+      }, 2000);
     }
   };
 
   if (success) {
     return (
-      <div className="p-4  border border-emerald-200 text-emerald-800 rounded-xl text-center space-y-2">
+      <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-center space-y-2">
+        <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-600" />
         <p className="font-bold text-sm">Kaydınız Başarıyla Alındı!</p>
         <p className="text-xs text-emerald-700">
           Hesabınız oluşturuldu. Yönetici onayının ardından giriş
-          yapabilirsiniz. Giriş sayfasına yönlendiriliyorsunuz...
+          yapabilirsiniz. Giriş sayfasına aktarılıyorsunuz...
         </p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 text-left ">
+    <form onSubmit={handleSubmit} className="space-y-4 text-left">
       {error && (
-        <div className="p-3  border border-rose-200 text-rose-700 rounded-xl text-xs font-medium">
-          {error}
+        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm rounded-xl flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
         </div>
       )}
 
       <div>
-        <label className="block text-xs  font-semibold text-slate-700 mb-1">
+        <label className="block text-xs font-semibold text-slate-700 mb-1">
           Ad Soyad
         </label>
         <input
@@ -81,14 +82,14 @@ export default function RegisterForm({ stores, warehouses }: Props) {
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Ahmet Yılmaz"
-          className="w-full px-3 py-2 border text-black border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-600"
+          placeholder="Ad Soyad"
+          className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition"
         />
       </div>
 
       <div>
         <label className="block text-xs font-semibold text-slate-700 mb-1">
-          E-Posta
+          E-Posta Adresi
         </label>
         <input
           type="email"
@@ -96,7 +97,7 @@ export default function RegisterForm({ stores, warehouses }: Props) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="ahmet@sirket.com"
-          className="w-full px-3 py-2 border text-black border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-600"
+          className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition"
         />
       </div>
 
@@ -110,18 +111,18 @@ export default function RegisterForm({ stores, warehouses }: Props) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
-          className="w-full px-3 py-2 border text-black border-slate-200 rounded-xl text-sm outline-none focus:border-indigo-600"
+          className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition"
         />
       </div>
 
       <div>
         <label className="block text-xs font-semibold text-slate-700 mb-1">
-          Rol
+          Rol Seçimi
         </label>
         <select
           value={role}
           onChange={(e) => setRole(e.target.value as any)}
-          className="w-full px-3 py-2 border text-black border-slate-200 rounded-xl text-sm  outline-none focus:border-indigo-600"
+          className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition cursor-pointer"
         >
           <option value="STORE_MANAGER">Mağaza Müdürü</option>
           <option value="WAREHOUSE_MANAGER">Depo Müdürü</option>
@@ -136,7 +137,7 @@ export default function RegisterForm({ stores, warehouses }: Props) {
           <select
             value={storeId}
             onChange={(e) => setStoreId(e.target.value)}
-            className="w-full px-3 py-2 border text-black border-slate-200 rounded-xl text-sm bg-white outline-none focus:border-indigo-600"
+            className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition cursor-pointer"
           >
             {stores.map((s) => (
               <option key={s.id} value={s.id}>
@@ -155,7 +156,7 @@ export default function RegisterForm({ stores, warehouses }: Props) {
           <select
             value={warehouseId}
             onChange={(e) => setWarehouseId(e.target.value)}
-            className="w-full px-3 py-2 border text-black border-slate-200 rounded-xl text-sm bg-white outline-none focus:border-indigo-600"
+            className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition cursor-pointer"
           >
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
@@ -169,10 +170,13 @@ export default function RegisterForm({ stores, warehouses }: Props) {
       <button
         type="submit"
         disabled={loading}
-        className="w-full flex items-center justify-center py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition shadow-sm disabled:opacity-50 mt-4"
+        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 text-sm mt-3"
       >
         {loading ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Kayıt yapılıyor...</span>
+          </>
         ) : (
           "Kayıt Talebi Oluştur"
         )}

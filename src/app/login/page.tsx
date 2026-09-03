@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Layers, Loader2, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,7 +25,11 @@ export default function LoginPage() {
     });
 
     if (res?.error) {
-      setError("E-posta veya şifre hatalı!");
+      setError(
+        res.error === "CredentialsSignin"
+          ? "E-posta veya şifre hatalı!"
+          : res.error,
+      );
       setLoading(false);
       return;
     }
@@ -32,41 +38,50 @@ export default function LoginPage() {
     router.refresh();
   };
 
+  const handleFillDemo = (demoEmail: string) => {
+    setEmail(demoEmail);
+    setPassword("123456");
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-zinc-100 p-4">
-      <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-xl">
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans text-slate-900">
+      <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+        <div className="text-center space-y-2">
+          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto border border-indigo-100 shadow-sm">
+            <Layers className="w-6 h-6" />
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
             Akıllı Stok Sistemi
           </h1>
-          <p className="text-sm text-zinc-400 mt-1">
-            Devam etmek için giriş yapın
+          <p className="text-xs sm:text-sm text-slate-500">
+            Yönetim paneline erişmek için giriş yapın
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-lg text-center">
-            {error}
+          <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm rounded-xl flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1">
-              E-Posta
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              E-Posta Adresi
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-blue-500"
+              className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition"
               placeholder="ornek@system.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
               Şifre
             </label>
             <input
@@ -74,28 +89,64 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 focus:outline-none focus:border-blue-500"
-              placeholder="••••••"
+              className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition"
+              placeholder="••••••••"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition disabled:opacity-50"
+            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
           >
-            {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Giriş yapılıyor...</span>
+              </>
+            ) : (
+              "Giriş Yap"
+            )}
           </button>
         </form>
 
-        {/* Hızlı Test Bilgileri */}
-        <div className="mt-6 pt-4 border-t border-zinc-800 text-xs text-zinc-400 space-y-1">
-          <p className="font-semibold text-zinc-300">
-            Test Hesapları (Şifre: 123456)
+        <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-500">
+          Hesabınız yok mu?{" "}
+          <Link
+            href="/register"
+            className="font-semibold text-indigo-600 hover:text-indigo-500 transition"
+          >
+            Hemen Kayıt Olun
+          </Link>
+        </div>
+
+        <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-2">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            Hızlı Test Hesapları (Şifre: 123456)
           </p>
-          <p>• Admin: admin@system.com</p>
-          <p>• Mağaza: magaza@system.com</p>
-          <p>• Depo: depo@system.com</p>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => handleFillDemo("admin@system.com")}
+              className="px-2.5 py-1 text-xs font-medium bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 transition"
+            >
+              Admin
+            </button>
+            <button
+              type="button"
+              onClick={() => handleFillDemo("magaza@system.com")}
+              className="px-2.5 py-1 text-xs font-medium bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 transition"
+            >
+              Mağaza Müdürü
+            </button>
+            <button
+              type="button"
+              onClick={() => handleFillDemo("depo@system.com")}
+              className="px-2.5 py-1 text-xs font-medium bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 transition"
+            >
+              İstanbul Depo
+            </button>
+          </div>
         </div>
       </div>
     </div>
