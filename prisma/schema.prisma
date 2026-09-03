@@ -112,7 +112,7 @@ model User {
   password     String
   name         String
   role         String     @default("STORE_MANAGER") // "ADMIN" | "STORE_MANAGER" | "WAREHOUSE_MANAGER"
-
+  isApproved   Boolean    @default(false)
   storeId      String?
   store        Store?     @relation(fields: [storeId], references: [id], onDelete: SetNull)
 

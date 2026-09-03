@@ -18,6 +18,7 @@ import {
 import DeleteDemandButton from "./components/DeleteDemandButton";
 import { getServerSession } from "next-auth";
 import { authOptions } from "./lib/auth";
+import UserApprovalButtons from "./components/UserApprovalButton";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +117,16 @@ export default async function DashboardPage() {
     })
     .filter((item) => item.missing > 0);
 
+  // 5. Onay Bekleyen Kullanıcılar (Sadece Admin görür)
+  const pendingUsers =
+    role === "ADMIN"
+      ? await prisma.user.findMany({
+          where: { isApproved: false },
+          include: { store: true, warehouse: true },
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
+
   return (
     <main className="min-h-screen bg-slate-50 p-4 sm:p-6 md:p-10 font-sans">
       <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
@@ -207,6 +218,43 @@ export default async function DashboardPage() {
               <span className="text-xs text-slate-400 mt-1 inline-block truncate w-full">
                 {warehouses.map((w) => w.name).join(", ") || "Depo yok"}
               </span>
+            </div>
+          </section>
+        )}
+
+        {/* Onay Bekleyen Kullanıcı Talepleri (Yalnızca Admin) */}
+        {role === "ADMIN" && pendingUsers.length > 0 && (
+          <section className="bg-white p-4 sm:p-5 rounded-2xl border border-indigo-100 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+                Onay Bekleyen Kullanıcı Kayıtları ({pendingUsers.length})
+              </h3>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {pendingUsers.map((u) => (
+                <div
+                  key={u.id}
+                  className="py-2.5 flex items-center justify-between text-xs sm:text-sm"
+                >
+                  <div>
+                    <span className="font-semibold text-slate-800">
+                      {u.name}
+                    </span>
+                    <span className="text-slate-400 mx-2">•</span>
+                    <span className="text-slate-500">{u.email}</span>
+                    <span className="text-slate-400 mx-2">•</span>
+                    <span className="font-medium text-indigo-600">
+                      {u.role === "STORE_MANAGER"
+                        ? `Mağaza: ${u.store?.name}`
+                        : `Depo: ${u.warehouse?.name}`}
+                    </span>
+                  </div>
+
+                  <UserApprovalButtons userId={u.id} />
+                </div>
+              ))}
             </div>
           </section>
         )}

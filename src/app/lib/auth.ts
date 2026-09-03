@@ -38,6 +38,10 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Hatalı şifre");
         }
 
+        if (user.role !== "ADMIN" && !user.isApproved) {
+          throw new Error("Hesabınız henüz yönetici tarafından onaylanmadı.");
+        }
+
         return {
           id: user.id,
           name: user.name,
