@@ -334,8 +334,6 @@ export default async function DashboardPage() {
               Mağaza Talepleri{" "}
               {role !== "STORE_MANAGER" && "ve Öncelik Durumları"}
             </h2>
-
-            {role === "STORE_MANAGER" && <AddDemandModal products={products} />}
           </div>
 
           <div className="border border-slate-100 rounded-xl overflow-x-auto w-full">
