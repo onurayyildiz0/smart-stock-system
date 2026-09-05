@@ -58,14 +58,20 @@ export default async function DashboardPage() {
     },
   });
 
-  // 3. Form için Mağazalar & Ürünler
-  const stores = await prisma.store.findMany({
-    where:
-      role === "STORE_MANAGER" && userStoreId ? { id: userStoreId } : undefined,
-    select: { id: true, name: true },
-  });
   const products = await prisma.product.findMany({
-    select: { id: true, name: true },
+    where: {
+      stocks: {
+        some: {
+          quantity: { gt: 0 },
+        },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      sku: true,
+    },
+    orderBy: { name: "asc" },
   });
 
   // 4. Son Dağıtım Çalıştırması
@@ -158,9 +164,7 @@ export default async function DashboardPage() {
             )}
 
             {/* Talep Ekleme: Admin veya Store Manager */}
-            {role === "STORE_MANAGER" && (
-              <AddDemandModal stores={stores} products={products} />
-            )}
+            {role === "STORE_MANAGER" && <AddDemandModal products={products} />}
 
             {/* Dağıtımı Çalıştır: YALNIZCA ADMIN */}
             {role === "ADMIN" && <RunButton />}
@@ -302,13 +306,16 @@ export default async function DashboardPage() {
           </section>
         )}
 
-        {/* Mağaza Talepleri Tablosunda Öncelik Sütunu */}
+        {/* Mağaza Talepleri Tablosu */}
         <section className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
               <Building2 className="w-5 h-5 text-slate-600" />
-              Mağaza Talepleri ve Öncelik Durumları
+              Mağaza Talepleri{" "}
+              {role !== "STORE_MANAGER" && "ve Öncelik Durumları"}
             </h2>
+
+            {role === "STORE_MANAGER" && <AddDemandModal products={products} />}
           </div>
 
           <div className="border border-slate-100 rounded-xl overflow-x-auto w-full">
@@ -316,7 +323,8 @@ export default async function DashboardPage() {
               <thead className="bg-slate-50 text-slate-400 text-xs uppercase font-semibold">
                 <tr>
                   <th className="p-3">Mağaza</th>
-                  <th className="p-3">Öncelik</th>
+                  {/* Mağaza müdürüyse Öncelik başlığını gizle */}
+                  {role !== "STORE_MANAGER" && <th className="p-3">Öncelik</th>}
                   <th className="p-3">Ürün</th>
                   <th className="p-3 text-center">Talep</th>
                   <th className="p-3 text-center">Karşılanan</th>
@@ -333,18 +341,24 @@ export default async function DashboardPage() {
                       (sum, a) => sum + a.allocatedQty,
                       0,
                     ) || 0;
+
                   return (
                     <tr key={d.id} className="hover:bg-slate-50/50">
                       <td className="p-3 font-medium text-slate-800">
                         {d.store.name}
                       </td>
-                      <td className="p-3">
-                        <StorePriorityForm
-                          storeId={d.store.id}
-                          initialPriority={d.store.priority}
-                          canEdit={role === "WAREHOUSE_MANAGER"}
-                        />
-                      </td>
+
+                      {/* Mağaza müdürüyse Öncelik hücresini gizle */}
+                      {role !== "STORE_MANAGER" && (
+                        <td className="p-3">
+                          <StorePriorityForm
+                            storeId={d.store.id}
+                            initialPriority={d.store.priority}
+                            canEdit={role === "WAREHOUSE_MANAGER"}
+                          />
+                        </td>
+                      )}
+
                       <td className="p-3">{d.product.name}</td>
                       <td className="p-3 text-center font-semibold">
                         {d.requestedQuantity}

@@ -12,6 +12,7 @@ model Product {
   sku         String            @unique
   name        String
   category    String
+  price       Float             
   stocks      WarehouseStock[]
   demands     StoreDemand[]
   allocations AllocationItem[]
@@ -58,6 +59,7 @@ model WarehouseRoute {
   storeId      String
   shippingCost Float     
   deliveryDays Int       
+  priority     Int       @default(1)
   warehouse    Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
   store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
 

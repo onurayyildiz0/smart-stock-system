@@ -4,21 +4,14 @@ import React, { useState, useTransition } from "react";
 import { Plus, X, Loader2 } from "lucide-react";
 import { createDemandAction } from "../actions/demand";
 
-interface StoreOption {
-  id: string;
-  name: string;
-}
-
 interface ProductOption {
   id: string;
   name: string;
 }
 
 export default function AddDemandModal({
-  stores,
   products,
 }: {
-  stores: StoreOption[];
   products: ProductOption[];
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -56,8 +49,9 @@ export default function AddDemandModal({
                 Yeni Mağaza Talebi
               </h3>
               <button
+                type="button"
                 onClick={() => setIsOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -66,32 +60,17 @@ export default function AddDemandModal({
             <form onSubmit={handleSubmit} className="space-y-4 mt-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                  Mağaza
-                </label>
-                <select
-                  name="storeId"
-                  required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">Mağaza Seçin</option>
-                  {stores.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
                   Ürün
                 </label>
                 <select
                   name="productId"
                   required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  defaultValue=""
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
-                  <option value="">Ürün Seçin</option>
+                  <option value="" disabled>
+                    Ürün Seçin
+                  </option>
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
@@ -118,14 +97,14 @@ export default function AddDemandModal({
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="w-1/2 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 text-sm"
+                  className="w-1/2 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 text-sm cursor-pointer"
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="w-1/2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium text-sm flex items-center justify-center gap-2"
+                  className="w-1/2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium text-sm flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

@@ -36,18 +36,15 @@ export default async function Navbar() {
           <span className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
             SmartStock
           </span>
-          <span className="text-xs px-2 py-0.5 rounded border font-mono font-medium border-zinc-700 text-zinc-400">
-            v1.0
-          </span>
         </div>
 
         {/* Kullanıcı Profili ve Rol Bilgisi */}
         <div className="flex items-center gap-4">
-          <div className="flex flex-col text-right">
+          <div className="flex flex-col items-center text-right">
             <span className="text-sm font-medium text-zinc-200">
               {session.user.name || session.user.email}
             </span>
-            <span className="text-xs text-zinc-500">{session.user.email}</span>
+            <span className="text-xs text-zinc-200">{session.user.email}</span>
           </div>
 
           <span

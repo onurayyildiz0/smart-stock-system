@@ -5,12 +5,7 @@ import { useRouter } from "next/navigation";
 import { registerUserAction } from "../actions/auth";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 
-interface Props {
-  stores: { id: string; name: string }[];
-  warehouses: { id: string; name: string }[];
-}
-
-export default function RegisterForm({ stores, warehouses }: Props) {
+export default function RegisterForm() {
   const router = useRouter();
   const [role, setRole] = useState<"STORE_MANAGER" | "WAREHOUSE_MANAGER">(
     "STORE_MANAGER",
@@ -18,8 +13,8 @@ export default function RegisterForm({ stores, warehouses }: Props) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [storeId, setStoreId] = useState(stores[0]?.id || "");
-  const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id || "");
+  const [storeName, setStoreName] = useState("");
+  const [warehouseName, setWarehouseName] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,8 +30,8 @@ export default function RegisterForm({ stores, warehouses }: Props) {
       email,
       password,
       role,
-      storeId: role === "STORE_MANAGER" ? storeId : undefined,
-      warehouseId: role === "WAREHOUSE_MANAGER" ? warehouseId : undefined,
+      storeName: role === "STORE_MANAGER" ? storeName : undefined,
+      warehouseName: role === "WAREHOUSE_MANAGER" ? warehouseName : undefined,
     });
 
     setLoading(false);
@@ -121,7 +116,9 @@ export default function RegisterForm({ stores, warehouses }: Props) {
         </label>
         <select
           value={role}
-          onChange={(e) => setRole(e.target.value as any)}
+          onChange={(e) =>
+            setRole(e.target.value as "STORE_MANAGER" | "WAREHOUSE_MANAGER")
+          }
           className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition cursor-pointer"
         >
           <option value="STORE_MANAGER">Mağaza Müdürü</option>
@@ -132,45 +129,39 @@ export default function RegisterForm({ stores, warehouses }: Props) {
       {role === "STORE_MANAGER" && (
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1">
-            Bağlı Mağaza
+            Mağaza Adı
           </label>
-          <select
-            value={storeId}
-            onChange={(e) => setStoreId(e.target.value)}
-            className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition cursor-pointer"
-          >
-            {stores.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+          <input
+            type="text"
+            required
+            value={storeName}
+            onChange={(e) => setStoreName(e.target.value)}
+            placeholder="Örn: Kadıköy Şubesi"
+            className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition"
+          />
         </div>
       )}
 
       {role === "WAREHOUSE_MANAGER" && (
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1">
-            Bağlı Depo
+            Depo Adı
           </label>
-          <select
-            value={warehouseId}
-            onChange={(e) => setWarehouseId(e.target.value)}
-            className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition cursor-pointer"
-          >
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+          <input
+            type="text"
+            required
+            value={warehouseName}
+            onChange={(e) => setWarehouseName(e.target.value)}
+            placeholder="Örn: Gebze Ana Lojistik Merkezi"
+            className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition"
+          />
         </div>
       )}
 
       <button
         type="submit"
         disabled={loading}
-        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 text-sm mt-3"
+        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 text-sm mt-3 cursor-pointer"
       >
         {loading ? (
           <>

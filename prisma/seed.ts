@@ -5,12 +5,12 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("🌱 Seed başlıyor...");
+  console.log("🌱 Seed işlemi başlatılıyor...");
 
-  // ─── 1. Temizlik ───────────────────────────────────────────────
-  await prisma.user.deleteMany();
+  // ─── 1. Temizlik (İlişki sıralamasına uygun silme) ───────────────
   await prisma.allocationItem.deleteMany();
   await prisma.allocationRun.deleteMany();
+  await prisma.user.deleteMany();
   await prisma.storeDemand.deleteMany();
   await prisma.warehouseRoute.deleteMany();
   await prisma.warehouseStock.deleteMany();
@@ -20,20 +20,35 @@ async function main() {
 
   console.log("🧹 Eski veriler temizlendi.");
 
-  // ─── 2. Ürünler ────────────────────────────────────────────────
+  // ─── 2. Ürünler (Zorunlu price/maliyet eklendi) ──────────────────
   const laptop = await prisma.product.create({
-    data: { sku: "PRD-001", name: "Laptop Pro 15", category: "Elektronik" },
+    data: {
+      sku: "PRD-001",
+      name: "Laptop Pro 15",
+      category: "Elektronik",
+      price: 25000.0,
+    },
   });
 
   const monitor = await prisma.product.create({
-    data: { sku: "PRD-002", name: 'Monitör 27"', category: "Elektronik" },
+    data: {
+      sku: "PRD-002",
+      name: 'Monitör 27"',
+      category: "Elektronik",
+      price: 8500.0,
+    },
   });
 
   const keyboard = await prisma.product.create({
-    data: { sku: "PRD-003", name: "Mekanik Klavye", category: "Aksesuar" },
+    data: {
+      sku: "PRD-003",
+      name: "Mekanik Klavye",
+      category: "Aksesuar",
+      price: 1800.0,
+    },
   });
 
-  console.log("📦 Ürünler oluşturuldu.");
+  console.log("📦 Ürünler ve birim maliyetler oluşturuldu.");
 
   // ─── 3. Depolar ────────────────────────────────────────────────
   const warehouseIstanbul = await prisma.warehouse.create({
@@ -65,7 +80,7 @@ async function main() {
   // ─── 4. Depo Stokları ──────────────────────────────────────────
   await prisma.warehouseStock.createMany({
     data: [
-      // İstanbul Depo
+      // İstanbul Depo (Toplam Laptop: 50, Monitör: 80, Klavye: 200)
       { warehouseId: warehouseIstanbul.id, productId: laptop.id, quantity: 50 },
       {
         warehouseId: warehouseIstanbul.id,
@@ -78,7 +93,7 @@ async function main() {
         quantity: 200,
       },
 
-      // Ankara Depo
+      // Ankara Depo (Toplam Laptop: 30, Monitör: 60, Klavye: 150)
       { warehouseId: warehouseAnkara.id, productId: laptop.id, quantity: 30 },
       { warehouseId: warehouseAnkara.id, productId: monitor.id, quantity: 60 },
       {
@@ -87,7 +102,7 @@ async function main() {
         quantity: 150,
       },
 
-      // İzmir Depo
+      // İzmir Depo (Toplam Laptop: 20, Monitör: 40, Klavye: 100)
       { warehouseId: warehouseIzmir.id, productId: laptop.id, quantity: 20 },
       { warehouseId: warehouseIzmir.id, productId: monitor.id, quantity: 40 },
       { warehouseId: warehouseIzmir.id, productId: keyboard.id, quantity: 100 },
@@ -117,7 +132,7 @@ async function main() {
     data: {
       name: "Trabzon Şubesi",
       location: "Trabzon",
-      priority: 1, // Standart
+      priority: 1, // Düşük
     },
   });
 
@@ -131,7 +146,7 @@ async function main() {
 
   console.log("🏪 Mağazalar oluşturuldu.");
 
-  // ─── 6. Rota & Maliyet Bilgileri ───────────────────────────────
+  // ─── 6. Rota, Maliyet & Depo Öncelik Bilgileri ───────────────────
   await prisma.warehouseRoute.createMany({
     data: [
       // İstanbul → Mağazalar
@@ -140,24 +155,28 @@ async function main() {
         storeId: storeBursa.id,
         shippingCost: 12.0,
         deliveryDays: 1,
+        priority: 3,
       },
       {
         warehouseId: warehouseIstanbul.id,
         storeId: storeAntalya.id,
         shippingCost: 25.0,
         deliveryDays: 3,
+        priority: 2,
       },
       {
         warehouseId: warehouseIstanbul.id,
         storeId: storeTrabzon.id,
         shippingCost: 30.0,
         deliveryDays: 4,
+        priority: 1,
       },
       {
         warehouseId: warehouseIstanbul.id,
         storeId: storeKonya.id,
         shippingCost: 20.0,
         deliveryDays: 2,
+        priority: 2,
       },
 
       // Ankara → Mağazalar
@@ -166,24 +185,28 @@ async function main() {
         storeId: storeBursa.id,
         shippingCost: 18.0,
         deliveryDays: 2,
+        priority: 2,
       },
       {
         warehouseId: warehouseAnkara.id,
         storeId: storeAntalya.id,
         shippingCost: 22.0,
         deliveryDays: 2,
+        priority: 2,
       },
       {
         warehouseId: warehouseAnkara.id,
         storeId: storeTrabzon.id,
         shippingCost: 20.0,
         deliveryDays: 2,
+        priority: 3,
       },
       {
         warehouseId: warehouseAnkara.id,
         storeId: storeKonya.id,
         shippingCost: 10.0,
         deliveryDays: 1,
+        priority: 4,
       },
 
       // İzmir → Mağazalar
@@ -192,34 +215,38 @@ async function main() {
         storeId: storeBursa.id,
         shippingCost: 15.0,
         deliveryDays: 2,
+        priority: 3,
       },
       {
         warehouseId: warehouseIzmir.id,
         storeId: storeAntalya.id,
         shippingCost: 18.0,
         deliveryDays: 1,
+        priority: 3,
       },
       {
         warehouseId: warehouseIzmir.id,
         storeId: storeTrabzon.id,
         shippingCost: 40.0,
         deliveryDays: 5,
+        priority: 1,
       },
       {
         warehouseId: warehouseIzmir.id,
         storeId: storeKonya.id,
         shippingCost: 16.0,
         deliveryDays: 2,
+        priority: 2,
       },
     ],
   });
 
-  console.log("🗺️  Rotalar oluşturuldu.");
+  console.log("🗺️  Rotalar ve öncelikler oluşturuldu.");
 
-  // ─── 7. Mağaza Talepleri ───────────────────────────────────────
+  // ─── 7. Bekleyen Mağaza Talepleri ──────────────────────────────
   await prisma.storeDemand.createMany({
     data: [
-      // Bursa (Yüksek Öncelik - Tier 3)
+      // Bursa
       {
         storeId: storeBursa.id,
         productId: laptop.id,
@@ -233,7 +260,7 @@ async function main() {
         status: "PENDING",
       },
 
-      // Antalya (Orta Öncelik - Tier 2)
+      // Antalya
       {
         storeId: storeAntalya.id,
         productId: laptop.id,
@@ -247,7 +274,7 @@ async function main() {
         status: "PENDING",
       },
 
-      // Trabzon (Standart - Tier 1)
+      // Trabzon
       {
         storeId: storeTrabzon.id,
         productId: laptop.id,
@@ -261,7 +288,7 @@ async function main() {
         status: "PENDING",
       },
 
-      // Konya (Orta Öncelik - Tier 2)
+      // Konya
       {
         storeId: storeKonya.id,
         productId: keyboard.id,
@@ -279,7 +306,7 @@ async function main() {
 
   console.log("📋 Talepler oluşturuldu.");
 
-  // ─── 8. Kullanıcılar (RBAC & Approval) ─────────────────────────
+  // ─── 8. Kullanıcı Hesapları (Şifre: 123456) ─────────────────────
   const defaultPassword = await bcrypt.hash("123456", 10);
 
   await prisma.user.createMany({
@@ -307,7 +334,6 @@ async function main() {
         warehouseId: warehouseIstanbul.id,
         isApproved: true,
       },
-      // Admin onay panelini hemen test edebilmek için onay bekleyen örnek kullanıcı:
       {
         name: "İzmir Depo Adayı",
         email: "onaybekleyen@system.com",
@@ -319,9 +345,7 @@ async function main() {
     ],
   });
 
-  console.log(
-    "👤 Kullanıcılar (Admin, Mağaza, Depo + 1 Onay Bekleyen) oluşturuldu.",
-  );
+  console.log("👤 Roller ve kullanıcılar oluşturuldu.");
   console.log("✅ Seed başarıyla tamamlandı!");
 }
 

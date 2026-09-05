@@ -16,7 +16,7 @@ export async function runAllocationAction() {
       return { error: "Yalnızca admin optimizasyon çalıştırabilir." };
     }
 
-    // 1. Bekleyen talepleri geçmiş karşılamalarıyla çek
+    // 1. Bekleyen veya kısmen karşılanmış talepleri geçmiş karşılamalarıyla çek
     const demandsDb = await prisma.storeDemand.findMany({
       where: {
         status: { in: ["PENDING", "PARTIAL"] },
@@ -57,7 +57,7 @@ export async function runAllocationAction() {
       return { success: true, message: "Tüm talepler zaten karşılanmış." };
     }
 
-    // 3. Sadece stoğu 0'dan BÜYÜK olanları motora gönder
+    // 3. Sadece stoğu 0'dan BÜYÜK olanları ve depoları çek
     const stocksDb = await prisma.warehouseStock.findMany({
       where: { quantity: { gt: 0 } },
       include: { warehouse: true, product: true },
@@ -65,6 +65,7 @@ export async function runAllocationAction() {
 
     const routesDb = await prisma.warehouseRoute.findMany();
     const warehousesDb = await prisma.warehouse.findMany();
+    const storesDb = await prisma.store.findMany();
 
     const stocks = stocksDb.map((s) => ({
       warehouseId: s.warehouseId,
@@ -73,17 +74,52 @@ export async function runAllocationAction() {
       availableQty: s.quantity,
     }));
 
-    const routes = routesDb.map((r) => ({
-      warehouseId: r.warehouseId,
-      storeId: r.storeId,
-      shippingCost: r.shippingCost,
-      deliveryDays: r.deliveryDays,
-    }));
+    // Veritabanındaki mevcut rotaları eşleştir
+    const routeMap = new Map<
+      string,
+      { shippingCost: number; deliveryDays: number }
+    >();
+    routesDb.forEach((r) => {
+      routeMap.set(`${r.warehouseId}_${r.storeId}`, {
+        shippingCost: r.shippingCost,
+        deliveryDays: r.deliveryDays,
+      });
+    });
+
+    // Rota boşsa veya yeni mağaza açıldıysa varsayılan maliyet ata (böylece motor kilitlenmez)
+    const routes: {
+      warehouseId: string;
+      storeId: string;
+      shippingCost: number;
+      deliveryDays: number;
+    }[] = [];
+
+    for (const wh of warehousesDb) {
+      for (const st of storesDb) {
+        const key = `${wh.id}_${st.id}`;
+        if (routeMap.has(key)) {
+          const existing = routeMap.get(key)!;
+          routes.push({
+            warehouseId: wh.id,
+            storeId: st.id,
+            shippingCost: existing.shippingCost,
+            deliveryDays: existing.deliveryDays,
+          });
+        } else {
+          routes.push({
+            warehouseId: wh.id,
+            storeId: st.id,
+            shippingCost: 15,
+            deliveryDays: 2,
+          });
+        }
+      }
+    }
 
     // 4. Dağıtımı Hesapla
     const result = runSmartAllocation(demands, stocks, routes, warehousesDb);
 
-    // 5. DB Kaydı
+    // 5. Veritabanı Kaydı
     await prisma.$transaction(async (tx) => {
       const run = await tx.allocationRun.create({
         data: {
@@ -124,7 +160,7 @@ export async function runAllocationAction() {
         });
       }
 
-      // Talep Durumlarını Güncelle
+      // Talep Durumlarını Güncelle (FULFILLED veya PARTIAL)
       for (const demand of demandsDb) {
         const newlyAllocated = result.allocations
           .filter((a) => a.demandId === demand.id)

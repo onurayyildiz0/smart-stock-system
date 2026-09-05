@@ -1,21 +1,8 @@
-import { prisma } from "../lib/prisma";
 import RegisterForm from "./RegisterForm";
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 
-export const dynamic = "force-dynamic";
-
-export default async function RegisterPage() {
-  const stores = await prisma.store.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
-  const warehouses = await prisma.warehouse.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
+export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans text-slate-900">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
@@ -31,7 +18,7 @@ export default async function RegisterPage() {
           </p>
         </div>
 
-        <RegisterForm stores={stores} warehouses={warehouses} />
+        <RegisterForm />
 
         <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-500">
           Zaten bir hesabınız var mı?{" "}
