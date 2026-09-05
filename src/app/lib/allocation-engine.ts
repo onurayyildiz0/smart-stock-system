@@ -4,10 +4,11 @@ export interface DemandInput {
   demandId: string;
   storeId: string;
   storeName: string;
-  storePriority: number; // 3: Yüksek, 2: Orta, 1: Normal
+  storePriority: number; // 4: Kritik, 3: Yüksek, 2: Orta, 1: Düşük
   productId: string;
   productName: string;
   requestedQty: number;
+  createdAt?: string | Date; // FIFO sıralaması için opsiyonel tarih
 }
 
 export interface StockInput {
@@ -46,21 +47,24 @@ export interface AllocationEngineResult {
     storeName: string;
     productName: string;
     missingQty: number;
-    reason: string; // <-- Bu satırı ekle
+    reason: string;
   }[];
 }
 
 /**
- * Akıllı Stok Dağıtım Algoritması (Multi-Criteria Greedy Allocation)
+ * Akıllı Çok Kriterli Greedy Stok Dağıtım Algoritması (Multi-Criteria Greedy Allocation)
+ * Sıralama Kriterleri:
+ * 1. Mağaza Önceliği (Azalan sıra)
+ * 2. Eşitlik Durumunda (Tie-breaking): FIFO / Deterministik Talep Kimliği
+ *
  * Zaman Karmaşıklığı (Time Complexity): O(D * log(D) + D * W * log(W))
  * D: Talep sayısı, W: Depo sayısı
  */
-
 export function runSmartAllocation(
   demands: DemandInput[],
   initialStocks: StockInput[],
   routes: RouteInput[],
-  warehouses: { id: string; capacity: number }[], // Kapasite için yeni girdi
+  warehouses: { id: string; capacity: number }[],
   weights = { costWeight: 0.7, timeWeight: 0.3 },
 ): AllocationEngineResult {
   const stockMap = new Map<string, number>();
@@ -68,20 +72,25 @@ export function runSmartAllocation(
     stockMap.set(`${s.warehouseId}:${s.productId}`, s.availableQty),
   );
 
-  // DEPO DOLULUK TAKİBİ (Yeni)
-  const warehouseUsageMap = new Map<string, number>();
-  // Mevcut toplam stokları başlangıç doluluğu olarak alalım
-  initialStocks.forEach((s) => {
-    const current = warehouseUsageMap.get(s.warehouseId) || 0;
-    warehouseUsageMap.set(s.warehouseId, current + s.availableQty);
-  });
-
   const routeMap = new Map<string, RouteInput>();
   routes.forEach((r) => routeMap.set(`${r.warehouseId}:${r.storeId}`, r));
 
-  const sortedDemands = [...demands].sort(
-    (a, b) => b.storePriority - a.storePriority,
-  );
+  // 1. DETERMINISTIK TALEP SIRALAMASI (Tie-breaking Kuralı)
+  const sortedDemands = [...demands].sort((a, b) => {
+    // 1. Öncelik Seviyesi (Büyükten küçüğe)
+    if (b.storePriority !== a.storePriority) {
+      return b.storePriority - a.storePriority;
+    }
+
+    // 2. Eşitlik Halinde: Tarih varsa eskiden yeniye (FIFO)
+    if (a.createdAt && b.createdAt) {
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    }
+
+    // 3. Tarih yoksa deterministik Demand ID sıralaması (Rastgeleliği tamamen önler)
+    return a.demandId.localeCompare(b.demandId);
+  });
+
   const allocations: AllocationResultItem[] = [];
   const unfulfilledDemands: AllocationEngineResult["unfulfilledDemands"] = [];
 
@@ -93,6 +102,7 @@ export function runSmartAllocation(
     totalRequested += demand.requestedQty;
     let remainingToFulfill = demand.requestedQty;
 
+    // Aday depoları filtreleme ve skorlama
     const scoredWarehouses = initialStocks
       .filter((s) => s.productId === demand.productId)
       .map((s) => {
@@ -103,7 +113,7 @@ export function runSmartAllocation(
 
         if (!route || currentStock <= 0) return null;
 
-        // Basit Skorlama: Düşük maliyet ve kısa süre iyidir.
+        // Çok Kriterli Karar Verme Skoru (Maliyet %70, Hız %30)
         const score =
           route.shippingCost * weights.costWeight +
           route.deliveryDays * 5 * weights.timeWeight;
@@ -117,7 +127,14 @@ export function runSmartAllocation(
         };
       })
       .filter((w): w is NonNullable<typeof w> => w !== null)
-      .sort((a, b) => a.score - b.score);
+      .sort((a, b) => {
+        // En düşük skora sahip depodan başla
+        if (a.score !== b.score) {
+          return a.score - b.score;
+        }
+        // Eşit maliyet/süre varsa sabit depo sıralaması
+        return a.warehouseId.localeCompare(b.warehouseId);
+      });
 
     for (const cand of scoredWarehouses) {
       if (remainingToFulfill <= 0) break;
@@ -128,7 +145,7 @@ export function runSmartAllocation(
 
       const allocateAmount = Math.min(remainingToFulfill, currentAvailable);
 
-      // Stok ve Maliyet Güncelleme
+      // Sanal stok ve sayaç güncellemeleri
       stockMap.set(
         `${cand.warehouseId}:${demand.productId}`,
         currentAvailable - allocateAmount,
@@ -150,7 +167,6 @@ export function runSmartAllocation(
     }
 
     if (remainingToFulfill > 0) {
-      // Ürün hiç mi yok, yoksa var ama rota mı tanımlanmamış?
       const productInStock = initialStocks.filter(
         (s) => s.productId === demand.productId,
       );
@@ -160,9 +176,7 @@ export function runSmartAllocation(
       );
 
       let reason = "STOK YETERSİZ";
-
       if (totalStockAcrossWarehouses > 0) {
-        // Stok var ama bu mağazaya ulaşamıyor olabilir
         const hasRoute = productInStock.some((s) =>
           routeMap.has(`${s.warehouseId}:${demand.storeId}`),
         );

@@ -22,7 +22,7 @@ export default async function Navbar() {
     },
   };
 
-  const userRole = (session.user as any).role || "USER";
+  const userRole = session?.user?.role || "USER";
   const badge = roleLabels[userRole] || {
     label: userRole,
     color: "bg-zinc-800 text-zinc-300 border-zinc-700",
@@ -33,7 +33,7 @@ export default async function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Logo ve Başlık */}
         <div className="flex items-center gap-3">
-          <span className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
+          <span className="text-xl font-bold  from-blue-400 to-indigo-500 bg-clip-text text-transparent">
             SmartStock
           </span>
         </div>

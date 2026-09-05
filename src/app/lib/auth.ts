@@ -1,9 +1,34 @@
-import { NextAuthOptions } from "next-auth";
+import { NextAuthOptions, DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { prisma } from "./prisma"; // Eğer yol farklıysa '../lib/prisma' yapabilirsin
 
-const prisma = new PrismaClient();
+// NextAuth Tip Genişletmeleri (any kullanımını tamamen kaldırır)
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id?: string;
+      role?: string;
+      storeId?: string | null;
+      warehouseId?: string | null;
+    } & DefaultSession["user"];
+  }
+
+  interface User {
+    id: string;
+    role: string;
+    storeId?: string | null;
+    warehouseId?: string | null;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    role?: string;
+    storeId?: string | null;
+    warehouseId?: string | null;
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -16,12 +41,9 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      // src/lib/auth.ts
-      async authorize(credentials) {
-        console.log("Giriş denemesi:", credentials?.email);
 
+      async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          console.log("Eksik bilgi");
           throw new Error("Geçersiz giriş bilgileri");
         }
 
@@ -29,10 +51,7 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email },
         });
 
-        console.log("Bulunan kullanıcı:", user);
-
         if (!user || !user.password) {
-          console.log("Kullanıcı bulunamadı veya şifresiz");
           throw new Error("Kullanıcı bulunamadı");
         }
 
@@ -40,8 +59,6 @@ export const authOptions: NextAuthOptions = {
           credentials.password,
           user.password,
         );
-
-        console.log("Şifre doğru mu?:", isPasswordValid);
 
         if (!isPasswordValid) {
           throw new Error("Hatalı şifre");
@@ -65,18 +82,18 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as any).role;
-        token.storeId = (user as any).storeId;
-        token.warehouseId = (user as any).warehouseId;
+        token.role = user.role;
+        token.storeId = user.storeId;
+        token.warehouseId = user.warehouseId;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.sub;
-        (session.user as any).role = token.role;
-        (session.user as any).storeId = token.storeId;
-        (session.user as any).warehouseId = token.warehouseId;
+        session.user.id = token.sub;
+        session.user.role = token.role;
+        session.user.storeId = token.storeId;
+        session.user.warehouseId = token.warehouseId;
       }
       return session;
     },

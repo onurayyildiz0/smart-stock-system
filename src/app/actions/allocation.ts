@@ -10,7 +10,7 @@ import { getServerSession } from "next-auth";
 export async function runAllocationAction() {
   try {
     const session = await getServerSession(authOptions);
-    const userRole = (session?.user as any)?.role;
+    const userRole = session?.user?.role;
 
     if (userRole !== "ADMIN") {
       return { error: "Yalnızca admin optimizasyon çalıştırabilir." };
@@ -32,7 +32,7 @@ export async function runAllocationAction() {
       return { success: true, message: "Açık talep bulunmuyor." };
     }
 
-    // 2. Kalan ihtiyaçları hesapla
+    // 2. Kalan ihtiyaçları hesapla (Deterministik tie-breaking için createdAt dahil edildi)
     const demands = demandsDb
       .map((d) => {
         const alreadyAllocated = d.allocations.reduce(
@@ -49,6 +49,7 @@ export async function runAllocationAction() {
           productId: d.productId,
           productName: d.product.name,
           requestedQty: trueRemainingQty,
+          createdAt: d.createdAt,
         };
       })
       .filter((d) => d.requestedQty > 0);
@@ -86,7 +87,7 @@ export async function runAllocationAction() {
       });
     });
 
-    // Rota boşsa veya yeni mağaza açıldıysa varsayılan maliyet ata (böylece motor kilitlenmez)
+    // Rota boşsa veya yeni mağaza açıldıysa varsayılan maliyet ata (motor kilitlenmez)
     const routes: {
       warehouseId: string;
       storeId: string;
@@ -119,7 +120,7 @@ export async function runAllocationAction() {
     // 4. Dağıtımı Hesapla
     const result = runSmartAllocation(demands, stocks, routes, warehousesDb);
 
-    // 5. Veritabanı Kaydı
+    // 5. Veritabanı Kaydı (Atomik Transaction)
     await prisma.$transaction(async (tx) => {
       const run = await tx.allocationRun.create({
         data: {
@@ -133,6 +134,36 @@ export async function runAllocationAction() {
       for (const item of result.allocations) {
         if (item.allocatedQty <= 0) continue;
 
+        // 1. Fiziksel stoğu anlık kilitleyip kontrol et
+        const currentStock = await tx.warehouseStock.findUnique({
+          where: {
+            warehouseId_productId: {
+              warehouseId: item.warehouseId,
+              productId: item.productId,
+            },
+          },
+        });
+
+        if (!currentStock || currentStock.quantity < item.allocatedQty) {
+          throw new Error(
+            `Stok tutarsızlığı: ${item.productId} ürünü için depoda yeterli stok kalmadı.`,
+          );
+        }
+
+        // 2. Stok düşümü
+        await tx.warehouseStock.update({
+          where: {
+            warehouseId_productId: {
+              warehouseId: item.warehouseId,
+              productId: item.productId,
+            },
+          },
+          data: {
+            quantity: { decrement: item.allocatedQty },
+          },
+        });
+
+        // 3. Dağıtım Detayı (AllocationItem) - Planın arayüzde görünmesi için zorunlu
         await tx.allocationItem.create({
           data: {
             runId: run.id,
@@ -145,22 +176,9 @@ export async function runAllocationAction() {
             deliveryDays: item.deliveryDays,
           },
         });
-
-        // Depo stoğunu fiziksel olarak düş
-        await tx.warehouseStock.update({
-          where: {
-            warehouseId_productId: {
-              warehouseId: item.warehouseId,
-              productId: item.productId,
-            },
-          },
-          data: {
-            quantity: { decrement: item.allocatedQty },
-          },
-        });
       }
 
-      // Talep Durumlarını Güncelle (FULFILLED veya PARTIAL)
+      // 6. Talep Durumlarını Güncelle (FULFILLED veya PARTIAL)
       for (const demand of demandsDb) {
         const newlyAllocated = result.allocations
           .filter((a) => a.demandId === demand.id)
@@ -190,9 +208,12 @@ export async function runAllocationAction() {
     });
 
     revalidatePath("/");
+    revalidatePath("/inventory");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Allocation hatası:", error);
-    return { error: error?.message || "Dağıtım hesaplanamadı." };
+    const message =
+      error instanceof Error ? error.message : "Dağıtım hesaplanamadı.";
+    return { error: message };
   }
 }

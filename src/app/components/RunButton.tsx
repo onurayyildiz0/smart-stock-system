@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Play, Loader2 } from "lucide-react";
-import { runAllocationAction } from "../actions/allocation"; // Yolunu teyit et
+import { runAllocationAction } from "../actions/allocation";
 
 export default function RunButton() {
   const router = useRouter();
@@ -15,8 +15,8 @@ export default function RunButton() {
       const result = await runAllocationAction();
       console.log("Optimizasyon sonucu:", result);
 
-      if (result && (result as any).error) {
-        alert("Hata: " + (result as any).error);
+      if (result && "error" in result && result.error) {
+        alert("Hata: " + result.error);
         return;
       }
 
@@ -24,9 +24,10 @@ export default function RunButton() {
       startTransition(() => {
         router.refresh();
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Action çağrısında hata:", err);
-      alert("Hata oluştu: " + (err?.message || "Bilinmeyen hata"));
+      const message = err instanceof Error ? err.message : "Bilinmeyen hata";
+      alert("Hata oluştu: " + message);
     }
   };
 
@@ -34,7 +35,7 @@ export default function RunButton() {
     <button
       onClick={handleRun}
       disabled={isPending}
-      className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition text-xs sm:text-sm font-semibold shadow-sm disabled:opacity-50"
+      className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition text-xs sm:text-sm font-semibold shadow-sm disabled:opacity-50 cursor-pointer"
     >
       {isPending ? (
         <>

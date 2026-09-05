@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
-  const user = session?.user as any;
+  const user = session?.user;
   const role = user?.role || "USER";
   const userStoreId = user?.storeId;
   const userWarehouseId = user?.warehouseId;
@@ -54,7 +54,7 @@ export default async function DashboardPage() {
       allocations: true,
     },
     orderBy: {
-      store: { priority: "desc" },
+      createdAt: "desc",
     },
   });
 
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
     orderBy: { name: "asc" },
   });
 
-  // 4. Son Dağıtım Çalıştırması
+  // 3. Son Dağıtım Çalıştırması
   const latestRun = await prisma.allocationRun.findFirst({
     where: { items: { some: {} } },
     orderBy: { createdAt: "desc" },
@@ -97,15 +97,36 @@ export default async function DashboardPage() {
     },
   });
 
+  // --- TUTARLI VE DÜZELTİLMİŞ DASHBOARD METRİKLERİ ---
+
+  // Yalnızca henüz tamamen bitmemiş açık talepleri filtrele (PENDING veya PARTIAL)
+  const openDemands = demands.filter((d) => d.status !== "FULFILLED");
+
+  // Bekleyen net açık ürün miktarı (İstenen - Karşılanan)
+  const totalOpenDemandQuantity = openDemands.reduce((acc, d) => {
+    const fulfilled =
+      d.allocations?.reduce((sum, a) => sum + a.allocatedQty, 0) || 0;
+    return acc + Math.max(0, d.requestedQuantity - fulfilled);
+  }, 0);
+
+  const totalStoresWaitingCount = new Set(openDemands.map((d) => d.storeId))
+    .size;
   const totalWarehousesCount = warehouses.length;
-  const totalDemandQuantity = demands.reduce(
-    (acc, d) => acc + d.requestedQuantity,
+
+  // Role özel KPI kartı değerleri
+  const visibleItems = latestRun?.items || [];
+  const displayTotalCost =
+    role === "ADMIN"
+      ? latestRun?.totalCost || 0
+      : visibleItems.reduce((sum, item) => sum + item.totalCost, 0);
+
+  const displayAllocatedQty = visibleItems.reduce(
+    (sum, item) => sum + item.allocatedQty,
     0,
   );
-  const totalStoresWaitingCount = new Set(demands.map((d) => d.storeId)).size;
 
-  // Karşılanamayan (Eksik Kalan) Taleplerin Hesaplanması
-  const shortageList = demands
+  // Karşılanamayan (Eksik Kalan / Kıtlık) Listesi (Yalnızca açık talepler için)
+  const shortageList = openDemands
     .map((d) => {
       const allocatedForThisDemand =
         d.allocations?.reduce((sum, a) => sum + a.allocatedQty, 0) || 0;
@@ -123,7 +144,7 @@ export default async function DashboardPage() {
     })
     .filter((item) => item.missing > 0);
 
-  // 5. Onay Bekleyen Kullanıcılar (Sadece Admin görür)
+  // 4. Onay Bekleyen Kullanıcılar (Sadece Admin görür)
   const pendingUsers =
     role === "ADMIN"
       ? await prisma.user.findMany({
@@ -132,7 +153,6 @@ export default async function DashboardPage() {
           orderBy: { createdAt: "desc" },
         })
       : [];
-
   return (
     <main className="min-h-screen bg-slate-50 p-4 sm:p-6 md:p-10 font-sans">
       <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
@@ -179,7 +199,7 @@ export default async function DashboardPage() {
                 Toplam Bekleyen Talep
               </span>
               <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-2">
-                {totalDemandQuantity} Adet
+                {totalOpenDemandQuantity} Adet
               </p>
               <span className="text-xs text-amber-600 font-medium mt-1 inline-block">
                 {totalStoresWaitingCount} Mağaza Bekliyor

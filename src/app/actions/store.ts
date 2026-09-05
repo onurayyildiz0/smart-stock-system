@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 export async function updateStorePriority(storeId: string, priority: number) {
   try {
     const session = await getServerSession(authOptions);
-    const userRole = (session?.user as any)?.role;
+    const userRole = session?.user?.role;
 
     if (userRole !== "WAREHOUSE_MANAGER" && userRole !== "ADMIN") {
       return { error: "Öncelik güncelleme yetkiniz bulunmuyor." };
@@ -26,8 +26,10 @@ export async function updateStorePriority(storeId: string, priority: number) {
 
     revalidatePath("/");
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Öncelik güncelleme hatası:", error);
-    return { error: "Öncelik güncellenirken bir hata oluştu." };
+    const message =
+      error instanceof Error ? error.message : "Öncelik güncellenemedi.";
+    return { error: message };
   }
 }
